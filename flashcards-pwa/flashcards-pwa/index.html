@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Flashcards • PWA</title>
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="white">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --bg: #ffffff; --fg: #0b0b0c; --muted:#6b7280; --accent:#2563eb; }
+    html, body { height: 100%; background: var(--bg); color: var(--fg); }
+    .glass { background: rgba(255,255,255,0.7); backdrop-filter: saturate(180%) blur(12px); }
+    .btn { @apply rounded-2xl px-4 py-3 text-sm font-medium shadow-sm border border-gray-200; }
+    .btn-primary { @apply bg-blue-600 text-white border-blue-600; }
+    .btn-muted { @apply bg-gray-50 text-gray-700; }
+    .card { @apply rounded-3xl shadow-lg border border-gray-200; }
+    .tap { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="antialiased">
+  <div class="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">Flashcards</h1>
+      <div class="flex items-center gap-2">
+        <button id="installBtn" class="btn btn-muted hidden">Install</button>
+        <label class="btn btn-primary cursor-pointer">
+          <input id="csvInput" type="file" accept=".csv,text/csv" class="hidden" />
+          Load CSV
+        </label>
+      </div>
+    </header>
+
+    <section id="emptyState" class="card p-10 text-center">
+      <p class="text-lg text-gray-700 mb-3">Load a CSV to begin.</p>
+      <p class="text-sm text-gray-500">Expected columns: <code>front, back</code> (optional: <code>ttsLangFront, ttsLangBack</code>).</p>
+      <div class="mt-6">
+        <button id="demoBtn" class="btn">Try Demo Deck</button>
+      </div>
+    </section>
+
+    <section id="app" class="hidden">
+      <div class="card p-6 sm:p-8">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm text-gray-500" id="deckMeta">0 / 0</div>
+          <div class="flex items-center gap-2">
+            <button id="speakBtn" class="btn tap" title="Read aloud">🔊 Read aloud</button>
+            <button id="revealBtn" class="btn tap" title="Show answer">👁️ Show</button>
+          </div>
+        </div>
+
+        <div class="min-h-[28vh] sm:min-h-[32vh] grid">
+          <div class="place-self-center text-center">
+            <div id="frontText" class="text-2xl sm:text-3xl font-medium leading-relaxed"></div>
+            <div id="backText" class="text-xl sm:text-2xl text-gray-500 mt-4 hidden"></div>
+          </div>
+        </div>
+
+        <div class="mt-8">
+          <div class="text-sm text-gray-500 mb-2">How well do you know it?</div>
+          <div class="grid grid-cols-5 gap-2">
+            <button data-score="1" class="rate btn tap">1</button>
+            <button data-score="2" class="rate btn tap">2</button>
+            <button data-score="3" class="rate btn tap">3</button>
+            <button data-score="4" class="rate btn tap">4</button>
+            <button data-score="5" class="rate btn tap">5</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mt-4">
+        <div class="text-xs text-gray-500" id="progressInfo">—</div>
+        <div class="flex gap-2">
+          <button id="prevBtn" class="btn tap">← Prev</button>
+          <button id="nextBtn" class="btn tap">Next →</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // --- Service worker registration ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(console.error);
+      });
+    }
+
+    // --- PWA install prompt handling ---
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('installBtn');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.classList.remove('hidden');
+    });
+    installBtn?.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      installBtn.classList.add('hidden');
+      deferredPrompt = null;
+    });
+
+    // --- App state ---
+    const state = {
+      deck: [],
+      index: 0,
+      showBack: false,
+      stats: { seen: 0, scores: {} },
+      tts: { frontLang: 'auto', backLang: 'auto' },
+      deckName: 'Default'
+    };
+
+    const el = (id) => document.getElementById(id);
+    const frontEl = el('frontText');
+    const backEl = el('backText');
+    const deckMetaEl = el('deckMeta');
+    const progressInfoEl = el('progressInfo');
+
+    const saveLocal = () => {
+      localStorage.setItem('flashcards.deck.'+state.deckName, JSON.stringify({
+        deck: state.deck, index: state.index, stats: state.stats
+      }));
+    };
+
+    const loadLocal = (deckName) => {
+      const raw = localStorage.getItem('flashcards.deck.'+deckName);
+      if (!raw) return false;
+      try {
+        const data = JSON.parse(raw);
+        Object.assign(state, { deck: data.deck || [], index: data.index || 0, stats: data.stats || { seen:0, scores:{} } });
+        return true;
+      } catch(e){ return false; }
+    };
+
+    const isChinese = (text) => /[\u4e00-\u9fff]/.test(text);
+
+    const pickVoice = (preferredLangs=[]) => {
+      const voices = window.speechSynthesis.getVoices() || [];
+      // Prefer zh-CN / zh / Chinese if any Chinese chars are present
+      for (const code of preferredLangs) {
+        const v = voices.find(v => (v.lang || '').toLowerCase().startsWith(code));
+        if (v) return v;
+      }
+      // Fallback to any voice
+      return voices[0] || null;
+    };
+
+    const speakText = (text, langHint='auto') => {
+      if (!('speechSynthesis' in window)) { alert('Text-to-Speech not supported on this device.'); return; }
+      if (!text || !text.trim()) return;
+      const utter = new SpeechSynthesisUtterance(text);
+      let preferred = [];
+      if (langHint === 'auto') {
+        if (isChinese(text)) preferred = ['zh-cn','zh','cmn'];
+      } else {
+        preferred = [langHint.toLowerCase()];
+      }
+      const trySetVoice = () => {
+        const voice = pickVoice(preferred);
+        if (voice) utter.voice = voice;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utter);
+      };
+      const existing = window.speechSynthesis.getVoices();
+      if (!existing || existing.length === 0) {
+        window.speechSynthesis.onvoiceschanged = trySetVoice;
+      } else {
+        trySetVoice();
+      }
+    };
+
+    const renderCard = () => {
+      if (state.deck.length === 0) return;
+      const card = state.deck[state.index];
+      frontEl.textContent = card.front || '';
+      backEl.textContent = card.back || '';
+      backEl.classList.toggle('hidden', !state.showBack);
+      deckMetaEl.textContent = (state.index+1) + ' / ' + state.deck.length;
+      const seen = Object.keys(state.stats.scores).length;
+      progressInfoEl.textContent = seen + ' graded';
+    };
+
+    const nextCard = () => {
+      if (state.deck.length === 0) return;
+      state.index = (state.index + 1) % state.deck.length;
+      state.showBack = false;
+      renderCard(); saveLocal();
+    };
+    const prevCard = () => {
+      if (state.deck.length === 0) return;
+      state.index = (state.index - 1 + state.deck.length) % state.deck.length;
+      state.showBack = false;
+      renderCard(); saveLocal();
+    };
+
+    const rate = (score) => {
+      const key = String(state.index);
+      state.stats.scores[key] = score;
+      state.stats.seen = Object.keys(state.stats.scores).length;
+      nextCard();
+      confetti();
+      saveLocal();
+    };
+
+    // Minimal confetti (canvas) — no external lib for simplicity
+    function confetti() {
+      const c = document.createElement('canvas');
+      Object.assign(c.style, { position:'fixed', inset:0, pointerEvents:'none' });
+      c.width = innerWidth; c.height = innerHeight;
+      document.body.appendChild(c);
+      const ctx = c.getContext('2d');
+      const parts = Array.from({length: 80}, () => ({
+        x: Math.random()*c.width,
+        y: -10,
+        r: 4+Math.random()*6,
+        v: 2+Math.random()*3,
+        a: Math.random()*Math.PI*2
+      }));
+      let t = 0;
+      const tick = () => {
+        ctx.clearRect(0,0,c.width,c.height);
+        parts.forEach(p => {
+          p.y += p.v;
+          p.x += Math.sin(p.a + t/10);
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+        });
+        t++;
+        if (t < 60) requestAnimationFrame(tick); else c.remove();
+      };
+      tick();
+    }
+
+    // --- CSV Loading ---
+    const csvInput = el('csvInput');
+    csvInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const deckName = file.name.replace(/\.[^/.]+$/, '');
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => {
+          const rows = res.data || [];
+          const deck = rows.map(r => ({
+            front: r.front ?? r.Front ?? r.term ?? r.Term ?? '',
+            back: r.back ?? r.Back ?? r.definition ?? r.Definition ?? '',
+            ttsLangFront: r.ttsLangFront || r.frontLang || '',
+            ttsLangBack: r.ttsLangBack || r.backLang || ''
+          })).filter(x => x.front || x.back);
+          if (!deck.length) { alert('No rows found. Make sure your CSV has headers like "front,back".'); return; }
+          Object.assign(state, { deck, index: 0, showBack: false, stats: { seen: 0, scores: {} }, deckName });
+          saveLocal();
+          el('emptyState').classList.add('hidden');
+          el('app').classList.remove('hidden');
+          renderCard();
+        }
+      });
+    });
+
+    // Demo deck
+    el('demoBtn').addEventListener('click', () => {
+      const demo = [
+        {front:'你好', back:'Hello', ttsLangFront:'zh-CN', ttsLangBack:'en-US'},
+        {front:'谢谢', back:'Thank you', ttsLangFront:'zh-CN', ttsLangBack:'en-US'},
+        {front:'再见', back:'Goodbye', ttsLangFront:'zh-CN', ttsLangBack:'en-US'},
+      ];
+      Object.assign(state, { deck: demo, index: 0, showBack: false, stats: { seen: 0, scores: {} }, deckName: 'Demo' });
+      saveLocal();
+      el('emptyState').classList.add('hidden');
+      el('app').classList.remove('hidden');
+      renderCard();
+    });
+
+    // Controls
+    el('speakBtn').addEventListener('click', () => {
+      const card = state.deck[state.index];
+      const text = state.showBack ? (card.back || card.front) : (card.front || card.back);
+      const langHint = state.showBack ? (card.ttsLangBack || 'auto') : (card.ttsLangFront || 'auto');
+      speakText(text, langHint);
+    });
+    el('revealBtn').addEventListener('click', () => {
+      state.showBack = !state.showBack;
+      backEl.classList.toggle('hidden', !state.showBack);
+    });
+    el('prevBtn').addEventListener('click', prevCard);
+    el('nextBtn').addEventListener('click', nextCard);
+    document.querySelectorAll('.rate').forEach(btn => {
+      btn.addEventListener('click', () => rate(parseInt(btn.dataset.score)));
+    });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.key === ' ') { e.preventDefault(); el('revealBtn').click(); }
+      if (e.key === 'ArrowRight') { nextCard(); }
+      if (e.key === 'ArrowLeft') { prevCard(); }
+      if (/[1-5]/.test(e.key)) { rate(parseInt(e.key)); }
+    });
+
+    // Attempt to restore last deck
+    if (loadLocal('Demo')) {
+      el('emptyState').classList.add('hidden');
+      el('app').classList.remove('hidden');
+      renderCard();
+    }
+  </script>
+</body>
+</html>
