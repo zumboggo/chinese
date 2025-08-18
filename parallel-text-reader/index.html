@@ -53,6 +53,7 @@
   <div class="controls">
     <label for="csvFile">Upload CSV:</label>
     <input id="csvFile" type="file" accept=".csv" onchange="handleFile(event)">
+    <label for="textSelector">Choose Story:</label>
     <select id="textSelector" onchange="switchText()">
       <option value="">-- Select a Text --</option>
     </select>
@@ -63,6 +64,7 @@
     <div class="english" id="englishDisplay"></div>
     <div class="chinese" id="chineseDisplay"></div>
   </div>
+
   <script>
     let texts = [];
     let scrollInterval;
@@ -73,7 +75,7 @@
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(e) {
-        const rows = e.target.result.split('\n').map(r => r.split(','));
+        const rows = e.target.result.split('\\n').map(r => r.split(','));
         texts = rows.map(row => ({
           chinese: row[0] || "",
           english: row[1] || "",
