@@ -57,7 +57,7 @@
   .pane {
     background: #fff; border-radius: 12px; padding: 0.9rem;
     overflow-y: auto; box-shadow: inset 0 0 0 1px #f1f5f9;
-    white-space: pre-wrap; line-height: 1.6;
+    white-space: pre-wrap; line-height: 1.6; font-size: 1.25rem;
   }
   /* Taller pane for English with scrolling */
   #englishDisplay { max-height: 70vh; }
@@ -107,26 +107,6 @@
       </div>
     </section>
 
-    <!-- Quick manual paste (one line) -->
-    <section class="card row">
-      <div class="row row-cols">
-        <div class="stack">
-          <label for="englishInput">Quick English (one line)</label>
-          <input id="englishInput" type="text" placeholder="Paste English here"/>
-        </div>
-        <div class="stack">
-          <label for="chineseInput">Quick Chinese (one line)</label>
-          <input id="chineseInput" type="text" placeholder="粘贴中文在这里"/>
-        </div>
-      </div>
-      <div class="row row-cols">
-        <button id="loadManual" class="primary">Load Text</button>
-        <div class="stack">
-          <label><input type="checkbox" id="autoTTS" checked /> Auto Chinese TTS</label>
-        </div>
-      </div>
-    </section>
-
     <!-- Reader panes & audio controls -->
     <section class="card row">
       <div class="toolbar">
@@ -136,6 +116,10 @@
       </div>
       <div class="reader">
         <div class="pane" id="englishDisplay" aria-label="English text"></div>
+      </div>
+      <div class="stack">
+        <label for="scrollSpeed">Scroll Speed</label>
+        <input type="range" id="scrollSpeed" min="0" max="10" value="0" />
       </div>
     </section>
 
@@ -152,15 +136,13 @@ const nowReading = document.getElementById('nowReading');
 const englishDisplay = document.getElementById('englishDisplay');
 let currentChinese = '';
 
-const englishInput = document.getElementById('englishInput');
-const chineseInput = document.getElementById('chineseInput');
-const autoTTS = document.getElementById('autoTTS');
-
 const csvInput = document.getElementById('csvInput');
-const loadManualBtn = document.getElementById('loadManual');
 const clearAllBtn = document.getElementById('clearAll');
 const replayZHBtn = document.getElementById('replayZH');
 const stopAllBtn = document.getElementById('stopAll');
+const scrollSpeed = document.getElementById('scrollSpeed');
+
+let scrollInterval = null;
 
 /* ========= CSV Parsing (handles quotes) ========= */
 function parseCSV(text) {
@@ -282,16 +264,15 @@ function populateStorySelector(){
   });
 }
 
-storySelector.addEventListener('change', () => {
-  const key = fileSelector.value;
-  const ds = datasets.get(key);
-  const idx = parseInt(storySelector.value, 10);
-  if (!ds || Number.isNaN(idx)) return;
-  const story = ds.stories[idx];
-  displayStory(story, `${ds.fileName} • ${story.title}`);
-  if (autoTTS.checked) speakChinese(story.chinese);
-  updateStatus();
-});
+  storySelector.addEventListener('change', () => {
+    const key = fileSelector.value;
+    const ds = datasets.get(key);
+    const idx = parseInt(storySelector.value, 10);
+    if (!ds || Number.isNaN(idx)) return;
+    const story = ds.stories[idx];
+    displayStory(story, `${ds.fileName} • ${story.title}`);
+    updateStatus();
+  });
 
 clearAllBtn.addEventListener('click', () => {
   datasets.clear();
@@ -301,21 +282,32 @@ clearAllBtn.addEventListener('click', () => {
   currentChinese = '';
   nowReading.textContent = 'Now reading: —';
   stopSpeaking();
+  if (scrollInterval) {
+    clearInterval(scrollInterval);
+    scrollInterval = null;
+  }
+  scrollSpeed.value = 0;
 });
 
-/* ========= Manual Load ========= */
-loadManualBtn.addEventListener('click', () => {
-  const eng = englishInput.value ?? '';
-  const chi = chineseInput.value ?? '';
-  displayStory({ english: eng, chinese: chi, title: '(Manual)' }, '(Manual)');
-  if (autoTTS.checked) speakChinese(chi);
+scrollSpeed.addEventListener('input', () => {
+  if (scrollInterval) {
+    clearInterval(scrollInterval);
+    scrollInterval = null;
+  }
+  const speed = parseInt(scrollSpeed.value, 10);
+  if (speed > 0) {
+    const delay = 1000 / speed;
+    scrollInterval = setInterval(() => {
+      englishDisplay.scrollTop += 1;
+    }, delay);
+  }
 });
 
-/* ========= Display ========= */
-function displayStory(story, label){
-  englishDisplay.textContent = story.english || '';
-  currentChinese = story.chinese || '';
-  nowReading.textContent = `Now reading: ${label || (story.title ?? '—')}`;
+  /* ========= Display ========= */
+  function displayStory(story, label){
+    englishDisplay.textContent = story.english || '';
+    currentChinese = story.chinese || '';
+    nowReading.textContent = `Now reading: ${label || (story.title ?? '—')}`;
   // scroll to top each time
   englishDisplay.scrollTop = 0;
 }
