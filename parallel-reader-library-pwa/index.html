@@ -8,13 +8,13 @@
 <meta name="theme-color" content="#2563eb">
 <style>
   :root {
-    --bg: #f7f7fb;
+    --bg: #f9fafb;
     --card: #ffffff;
-    --primary: #2563eb;
-    --text: #111827;
+    --primary: #1f2937;
+    --text: #1f2937;
     --muted: #6b7280;
-    --shadow: 0 6px 18px rgba(0,0,0,0.08);
-    --radius: 14px;
+    --shadow: 0 4px 12px rgba(0,0,0,0.06);
+    --radius: 12px;
   }
   * { box-sizing: border-box; }
   body {
@@ -23,11 +23,11 @@
     background: var(--bg); color: var(--text);
   }
   header {
-    background: linear-gradient(135deg, var(--primary), #4f46e5);
+    background: var(--primary);
     color: #fff; text-align: center;
     padding: 0.8rem 1rem; border-radius: var(--radius);
     box-shadow: var(--shadow);
-    font-weight: 700; letter-spacing: 0.2px;
+    font-weight: 600;
   }
   .wrap {
     max-width: 800px; margin: 0.8rem auto; display: grid; gap: 0.9rem;
@@ -61,9 +61,7 @@
     overflow-y: auto; box-shadow: inset 0 0 0 1px #f1f5f9;
     white-space: pre-wrap; line-height: 1.6;
   }
-  /* 1.5x height for English */
-  #englishDisplay { height: 45vh; }
-  #chineseDisplay { height: 30vh; }
+  #englishDisplay { height: 60vh; }
   .toolbar {
     display: grid; gap: 0.5rem;
   }
@@ -125,22 +123,20 @@
       <div class="row row-cols">
         <button id="loadManual" class="primary">Load Text</button>
         <div class="stack">
-          <label><input type="checkbox" id="autoTTS" checked /> Auto TTS (EN → ZH)</label>
+          <label><input type="checkbox" id="autoTTS" checked /> Auto TTS (ZH only)</label>
         </div>
       </div>
     </section>
 
-    <!-- Reader panes & audio controls -->
+    <!-- Reader pane & audio controls -->
     <section class="card row">
       <div class="toolbar">
         <div class="pill" id="nowReading">Now reading: —</div>
-        <button id="replayEN" class="ghost">Replay English</button>
-        <button id="replayZH" class="ghost">Replay Chinese</button>
+        <button id="replayZH" class="ghost">Replay</button>
         <button id="stopAll" class="ghost">Stop Audio</button>
       </div>
       <div class="reader">
         <div class="pane" id="englishDisplay" aria-label="English text"></div>
-        <div class="pane" id="chineseDisplay" aria-label="Chinese text"></div>
       </div>
     </section>
 
@@ -155,7 +151,6 @@ const statusPill = document.getElementById('statusPill');
 const nowReading = document.getElementById('nowReading');
 
 const englishDisplay = document.getElementById('englishDisplay');
-const chineseDisplay = document.getElementById('chineseDisplay');
 
 const englishInput = document.getElementById('englishInput');
 const chineseInput = document.getElementById('chineseInput');
@@ -164,9 +159,11 @@ const autoTTS = document.getElementById('autoTTS');
 const csvInput = document.getElementById('csvInput');
 const loadManualBtn = document.getElementById('loadManual');
 const clearAllBtn = document.getElementById('clearAll');
-const replayENBtn = document.getElementById('replayEN');
 const replayZHBtn = document.getElementById('replayZH');
 const stopAllBtn = document.getElementById('stopAll');
+
+let currentEnglishLines = [];
+let currentChineseLines = [];
 
 /* ========= CSV Parsing (handles quotes) ========= */
 function parseCSV(text) {
@@ -295,7 +292,7 @@ storySelector.addEventListener('change', () => {
   if (!ds || Number.isNaN(idx)) return;
   const story = ds.stories[idx];
   displayStory(story, `${ds.fileName} • ${story.title}`);
-  if (autoTTS.checked) speakBoth(story.english, story.chinese);
+  if (autoTTS.checked) speakChineseLines();
   updateStatus();
 });
 
@@ -303,8 +300,9 @@ clearAllBtn.addEventListener('click', () => {
   datasets.clear();
   updateFileSelector();
   updateStatus();
-  englishDisplay.textContent = '';
-  chineseDisplay.textContent = '';
+  englishDisplay.innerHTML = '';
+  currentEnglishLines = [];
+  currentChineseLines = [];
   nowReading.textContent = 'Now reading: —';
   stopSpeaking();
 });
@@ -314,28 +312,33 @@ loadManualBtn.addEventListener('click', () => {
   const eng = englishInput.value ?? '';
   const chi = chineseInput.value ?? '';
   displayStory({ english: eng, chinese: chi, title: '(Manual)' }, '(Manual)');
-  if (autoTTS.checked) speakBoth(eng, chi);
+  if (autoTTS.checked) speakChineseLines();
 });
 
 /* ========= Display ========= */
 function displayStory(story, label){
-  englishDisplay.textContent = story.english || '';
-  chineseDisplay.textContent = story.chinese || '';
+  currentEnglishLines = (story.english || '').split('\n');
+  currentChineseLines = (story.chinese || '').split('\n');
+
+  englishDisplay.innerHTML = '';
+  currentEnglishLines.forEach(line => {
+    const p = document.createElement('p');
+    p.textContent = line;
+    englishDisplay.appendChild(p);
+  });
+
   nowReading.textContent = `Now reading: ${label || (story.title ?? '—')}`;
-  // scroll to top each time
   englishDisplay.scrollTop = 0;
-  chineseDisplay.scrollTop = 0;
 }
 
 /* ========= TTS ========= */
 let voices = [];
-let enVoice = null, zhVoice = null;
+let zhVoice = null;
 
 function loadVoices(){
   return new Promise(resolve => {
     const handler = () => {
       voices = speechSynthesis.getVoices();
-      enVoice = pickVoice(['en-US','en-GB','en']);
       zhVoice = pickVoice(['zh-CN','zh-TW','zh']);
       resolve();
     };
@@ -378,37 +381,29 @@ function stopSpeaking(){
   speechSynthesis.cancel();
 }
 
-async function speakBoth(english, chinese){
+async function speakChineseLines(){
   if (!('speechSynthesis' in window)) return;
   stopSpeaking();
   await loadVoices();
 
-  return new Promise(resolve => {
-    const enUtter = speak(english, (enVoice?.lang || 'en-US'), enVoice);
-    if (!enUtter) { // if no english, just speak chinese
-      const zhUtter = speak(chinese, (zhVoice?.lang || 'zh-CN'), zhVoice);
-      if (!zhUtter) return resolve();
-      zhUtter.onend = () => resolve();
-      return;
-    }
-    enUtter.onend = () => {
-      const zhUtter = speak(chinese, (zhVoice?.lang || 'zh-CN'), zhVoice);
-      if (!zhUtter) return resolve();
-      zhUtter.onend = () => resolve();
+  let idx = 0;
+  function speakNext(){
+    if (idx >= currentChineseLines.length) return;
+    const line = currentChineseLines[idx].trim();
+    if (!line){ idx++; speakNext(); return; }
+    const utter = speak(line, (zhVoice?.lang || 'zh-CN'), zhVoice);
+    if (!utter){ idx++; speakNext(); return; }
+    const lineIndex = idx;
+    utter.onstart = () => {
+      const el = englishDisplay.children[lineIndex];
+      if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
     };
-  });
+    utter.onend = () => { idx++; speakNext(); };
+  }
+  speakNext();
 }
 
-replayENBtn.addEventListener('click', async () => {
-  stopSpeaking();
-  await loadVoices();
-  speak(englishDisplay.textContent, (enVoice?.lang || 'en-US'), enVoice);
-});
-replayZHBtn.addEventListener('click', async () => {
-  stopSpeaking();
-  await loadVoices();
-  speak(chineseDisplay.textContent, (zhVoice?.lang || 'zh-CN'), zhVoice);
-});
+replayZHBtn.addEventListener('click', speakChineseLines);
 stopAllBtn.addEventListener('click', stopSpeaking);
 
 /* ========= Status ========= */
