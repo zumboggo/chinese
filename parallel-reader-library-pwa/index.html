@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Parallel Text Reader — Library PWA</title>
+<title>Parallel Text Reader (PWA)</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2563eb">
 <style>
@@ -29,70 +29,114 @@
     box-shadow: var(--shadow);
     font-weight: 700; letter-spacing: 0.2px;
   }
-  .wrap { max-width: 900px; margin: 0.8rem auto; display: grid; gap: 0.9rem; }
+  .wrap {
+    max-width: 800px; margin: 0.8rem auto; display: grid; gap: 0.9rem;
+  }
   .card {
     background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
     padding: 0.9rem;
   }
   .row { display: grid; gap: 0.6rem; }
-  @media (min-width: 640px){ .row-cols-2 { grid-template-columns: 1fr 1fr; gap: 0.6rem; } }
+  @media (min-width: 560px){
+    .row-cols { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  }
   label { font-size: 0.9rem; color: var(--muted); }
-  select, input[type="file"], button {
+  input[type="text"], select, button {
     width: 100%; font-size: 1rem; padding: 0.7rem 0.8rem;
     border: 1px solid #e5e7eb; border-radius: 12px; background: #fff;
   }
-  button.primary { background: var(--primary); color:#fff; border:none; font-weight:600; }
-  button.ghost { background: #fff; border: 1px solid #e5e7eb; }
-  button:active { transform: translateY(1px); }
-  .pill { display:inline-flex; align-items:center; gap:.5rem; padding:.45rem .65rem; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:.85rem; }
-  .reader { display: grid; gap: 0.75rem; }
-  .pane {
-    background:#fff; border-radius:12px; padding:1rem;
-    overflow-y:auto; box-shadow: inset 0 0 0 1px #f1f5f9;
-    white-space: pre-wrap; line-height:1.6;
+  input[type="file"]{ font-size: 0.95rem; }
+  button.primary {
+    background: var(--primary); color: #fff; border: none; font-weight: 600;
   }
-  #englishDisplay { height: 45vh; font-size: 1.15rem; }
-  #chineseDisplay { height: 30vh; font-size: 1.05rem; }
-  .toolbar { display:grid; gap:.5rem; align-items:center; }
-  @media (min-width:640px){ .toolbar { grid-template-columns: 1fr auto auto; } }
+  button.ghost { background: #fff; border: 1px solid #e5e7eb; color: #111827; }
+  button:active { transform: translateY(1px); }
+  .help { font-size: 0.85rem; color: var(--muted); }
+  .stack { display: grid; gap: 0.5rem; }
+  .reader {
+    display: grid; gap: 0.75rem;
+  }
+  .pane {
+    background: #fff; border-radius: 12px; padding: 0.9rem;
+    overflow-y: auto; box-shadow: inset 0 0 0 1px #f1f5f9;
+    white-space: pre-wrap; line-height: 1.6;
+  }
+  /* 1.5x height for English */
+  #englishDisplay { height: 45vh; }
+  #chineseDisplay { height: 30vh; }
+  .toolbar {
+    display: grid; gap: 0.5rem;
+  }
+  @media (min-width: 560px){
+    .toolbar { grid-template-columns: 1fr auto auto auto; align-items: end; }
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.65rem; border-radius: 999px; background: #f3f4f6; color: #374151;
+    font-size: 0.85rem;
+  }
 </style>
 </head>
 <body>
-  <header>📖 Parallel Text Reader — Library</header>
+  <header>📖 Parallel Text Reader</header>
   <div class="wrap">
 
+    <!-- CSV Loader & Two-Level Selection -->
     <section class="card row">
-      <div class="row row-cols-2">
-        <div>
+      <div class="row row-cols">
+        <div class="stack">
           <label for="csvInput">Add CSV (Col1=Chinese, Col2=English, Col3=Title)</label>
           <input id="csvInput" type="file" accept=".csv" />
-          <div style="font-size:.85rem;color:var(--muted);margin-top:.3rem;">Files are stored locally (IndexedDB) for offline use.</div>
+          <div class="help">You can add multiple CSVs. Each row becomes a story. Only the Title (col 3) shows in the story list.</div>
         </div>
-        <div>
-          <label for="fileSelector">CSV Files (Library)</label>
+        <div class="stack">
+          <label>CSV Files</label>
           <select id="fileSelector" disabled>
-            <option value="">— No CSV in library —</option>
+            <option value="">— No CSV loaded —</option>
           </select>
         </div>
       </div>
-      <div>
-        <label for="storySelector">Stories in Selected CSV (by Title)</label>
-        <select id="storySelector" disabled>
-          <option value="">— Select a CSV first —</option>
-        </select>
+      <div class="row">
+        <div class="stack">
+          <label>Stories in Selected CSV (by Title)</label>
+          <select id="storySelector" disabled>
+            <option value="">— Select a CSV first —</option>
+          </select>
+        </div>
       </div>
-      <div class="row row-cols-2">
-        <button id="deleteCsv" class="ghost">Delete Selected CSV</button>
-        <button id="clearAll" class="ghost">Clear Entire Library</button>
+      <div class="row row-cols">
+        <button id="clearAll" class="ghost">Clear All CSVs</button>
+        <span class="pill" id="statusPill">0 files • 0 stories</span>
       </div>
-      <div><span class="pill" id="statusPill">0 files • 0 stories</span></div>
     </section>
 
+    <!-- Quick manual paste (one line) -->
+    <section class="card row">
+      <div class="row row-cols">
+        <div class="stack">
+          <label for="englishInput">Quick English (one line)</label>
+          <input id="englishInput" type="text" placeholder="Paste English here"/>
+        </div>
+        <div class="stack">
+          <label for="chineseInput">Quick Chinese (one line)</label>
+          <input id="chineseInput" type="text" placeholder="粘贴中文在这里"/>
+        </div>
+      </div>
+      <div class="row row-cols">
+        <button id="loadManual" class="primary">Load Text</button>
+        <div class="stack">
+          <label><input type="checkbox" id="autoTTS" checked /> Auto TTS (EN → ZH)</label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reader panes & audio controls -->
     <section class="card row">
       <div class="toolbar">
         <div class="pill" id="nowReading">Now reading: —</div>
-        <button id="shareBtn" class="ghost">Export Current Story (.txt)</button>
-        <button id="installBtn" class="primary" hidden>Install App</button>
+        <button id="replayEN" class="ghost">Replay English</button>
+        <button id="replayZH" class="ghost">Replay Chinese</button>
+        <button id="stopAll" class="ghost">Stop Audio</button>
       </div>
       <div class="reader">
         <div class="pane" id="englishDisplay" aria-label="English text"></div>
@@ -103,146 +147,121 @@
   </div>
 
 <script>
-/* ========== IndexedDB Helpers ========== */
-const DB_NAME = 'parallel-reader-db';
-const STORE = 'csvLibrary';
-
-function dbOpen(){
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'id' }); // {id, fileName, addedAt, stories:[{title,english,chinese}]}
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function dbPut(entry){
-  return dbOpen().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(entry);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  }));
-}
-
-function dbDelete(id){
-  return dbOpen().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  }));
-}
-
-function dbGetAll(){
-  return dbOpen().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
-    const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  }));
-}
-
-/* ========== State & Elements ========== */
-const datasets = new Map(); // id -> {id,fileName,stories}
+/* ========= Data Structures ========= */
+const datasets = new Map(); // key: fileName, value: {fileName, stories: [{title, english, chinese}]}
 const fileSelector = document.getElementById('fileSelector');
 const storySelector = document.getElementById('storySelector');
 const statusPill = document.getElementById('statusPill');
 const nowReading = document.getElementById('nowReading');
+
 const englishDisplay = document.getElementById('englishDisplay');
 const chineseDisplay = document.getElementById('chineseDisplay');
 
-const csvInput = document.getElementById('csvInput');
-const deleteCsvBtn = document.getElementById('deleteCsv');
-const clearAllBtn = document.getElementById('clearAll');
-const shareBtn = document.getElementById('shareBtn');
+const englishInput = document.getElementById('englishInput');
+const chineseInput = document.getElementById('chineseInput');
+const autoTTS = document.getElementById('autoTTS');
 
-/* ========== CSV Parsing (robust) ========== */
+const csvInput = document.getElementById('csvInput');
+const loadManualBtn = document.getElementById('loadManual');
+const clearAllBtn = document.getElementById('clearAll');
+const replayENBtn = document.getElementById('replayEN');
+const replayZHBtn = document.getElementById('replayZH');
+const stopAllBtn = document.getElementById('stopAll');
+
+/* ========= CSV Parsing (handles quotes) ========= */
 function parseCSV(text) {
   const rows = [];
   let i = 0, field = '', row = [], inQuotes = false;
-  text = text.replace(/\r\n/g, '\\n').replace(/\\r/g, '\\n');
+
+  // Normalize newlines
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
   while (i < text.length) {
-    const c = text[i];
+    const char = text[i];
+
     if (inQuotes) {
-      if (c === '"') {
-        if (text[i+1] === '"') { field += '"'; i+=2; continue; }
+      if (char === '"') {
+        // Possible end of quoted field or escaped quote
+        if (text[i+1] === '"') { field += '"'; i += 2; continue; }
         inQuotes = false; i++; continue;
-      } else { field += c; i++; continue; }
+      } else {
+        field += char; i++; continue;
+      }
     } else {
-      if (c === '"') { inQuotes = true; i++; continue; }
-      if (c === ',') { row.push(field); field=''; i++; continue; }
-      if (c === '\\n') { row.push(field); field=''; rows.push(row); row=[]; i++; continue; }
-      field += c; i++; continue;
+      if (char === '"') {
+        inQuotes = true; i++; continue;
+      } else if (char === ',') {
+        row.push(field); field=''; i++; continue;
+      } else if (char === '\n') {
+        row.push(field); field=''; rows.push(row); row=[]; i++; continue;
+      } else {
+        field += char; i++; continue;
+      }
     }
   }
-  row.push(field); rows.push(row);
+  // last field/row
+  row.push(field);
+  rows.push(row);
   return rows;
 }
 
-/* ========== Library Management ========== */
-async function loadLibrary(){
-  const all = await dbGetAll();
-  datasets.clear();
-  for (const entry of all) {
-    datasets.set(entry.id, entry);
-  }
-  updateFileSelector();
-  updateStatus();
-}
-
+/* ========= File Handling ========= */
 csvInput.addEventListener('change', async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
+
+  const fileName = file.name;
   const text = await file.text();
   const rows = parseCSV(text);
 
+  // Turn each row into a story: [0]=Chinese, [1]=English, [2]=Title
   const stories = [];
   for (let idx=0; idx<rows.length; idx++){
     const r = rows[idx];
     if (!r || r.length < 3) continue;
-    if (idx===0 && r[0] && r[0].charCodeAt(0) === 0xFEFF) r[0] = r[0].slice(1);
+
+    // strip BOM from first cell if present
+    if (idx===0 && r[0] && r[0].charCodeAt(0) === 0xFEFF) {
+      r[0] = r[0].slice(1);
+    }
+
     const chinese = (r[0] ?? '').trim();
     const english = (r[1] ?? '').trim();
-    const title   = ((r[2] ?? '').trim()) || `Story ${idx+1}`;
+    const title = ((r[2] ?? '').trim()) || `Story ${idx+1}`;
+
+    // skip completely empty rows
     if (!chinese && !english && !title) continue;
+
     stories.push({ title, english, chinese });
   }
 
-  const id = file.name; // use file name as id; overwrites on re-import
-  const entry = { id, fileName: file.name, addedAt: Date.now(), stories };
-  await dbPut(entry);
-  await loadLibrary();
-  fileSelector.value = id;
+  datasets.set(fileName, { fileName, stories });
+  updateFileSelector();
+  // Auto-select the newly added file
+  fileSelector.value = fileName;
   populateStorySelector();
-  csvInput.value='';
+  updateStatus();
+  csvInput.value = ''; // reset input
 });
 
 function updateFileSelector(){
-  const prev = fileSelector.value;
+  const prevValue = fileSelector.value;
   fileSelector.innerHTML = '';
   if (datasets.size === 0) {
     fileSelector.disabled = true;
-    fileSelector.innerHTML = '<option value="">— No CSV in library —</option>';
+    fileSelector.innerHTML = '<option value="">— No CSV loaded —</option>';
     storySelector.disabled = true;
     storySelector.innerHTML = '<option value="">— Select a CSV first —</option>';
     return;
   }
   fileSelector.disabled = false;
-  Array.from(datasets.values())
-    .sort((a,b)=> (a.fileName||'').localeCompare(b.fileName||''))
-    .forEach(ds => {
-      const opt = document.createElement('option');
-      opt.value = ds.id;
-      opt.textContent = ds.fileName;
-      fileSelector.appendChild(opt);
-    });
-  if (datasets.has(prev)) fileSelector.value = prev;
+  for (const key of datasets.keys()) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = key;
+    fileSelector.appendChild(opt);
+  }
+  if (datasets.has(prevValue)) fileSelector.value = prevValue;
 }
 
 fileSelector.addEventListener('change', () => {
@@ -251,8 +270,8 @@ fileSelector.addEventListener('change', () => {
 });
 
 function populateStorySelector(){
-  const id = fileSelector.value;
-  const ds = datasets.get(id);
+  const key = fileSelector.value;
+  const ds = datasets.get(key);
   storySelector.innerHTML = '';
   if (!ds || !ds.stories?.length) {
     storySelector.disabled = true;
@@ -260,6 +279,7 @@ function populateStorySelector(){
     return;
   }
   storySelector.disabled = false;
+  // Only show titles
   ds.stories.forEach((s, i) => {
     const opt = document.createElement('option');
     opt.value = i.toString();
@@ -269,81 +289,143 @@ function populateStorySelector(){
 }
 
 storySelector.addEventListener('change', () => {
-  const id = fileSelector.value;
-  const ds = datasets.get(id);
+  const key = fileSelector.value;
+  const ds = datasets.get(key);
   const idx = parseInt(storySelector.value, 10);
   if (!ds || Number.isNaN(idx)) return;
   const story = ds.stories[idx];
   displayStory(story, `${ds.fileName} • ${story.title}`);
+  if (autoTTS.checked) speakBoth(story.english, story.chinese);
   updateStatus();
 });
 
-clearAllBtn.addEventListener('click', async () => {
-  // delete all by reopening DB and clearing store
-  const db = await dbOpen();
-  await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const req = tx.objectStore(STORE).clear();
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-  await loadLibrary();
+clearAllBtn.addEventListener('click', () => {
+  datasets.clear();
+  updateFileSelector();
+  updateStatus();
   englishDisplay.textContent = '';
   chineseDisplay.textContent = '';
   nowReading.textContent = 'Now reading: —';
+  stopSpeaking();
 });
 
-deleteCsvBtn.addEventListener('click', async () => {
-  const id = fileSelector.value;
-  if (!id) return;
-  await dbDelete(id);
-  await loadLibrary();
-  englishDisplay.textContent = '';
-  chineseDisplay.textContent = '';
-  nowReading.textContent = 'Now reading: —';
+/* ========= Manual Load ========= */
+loadManualBtn.addEventListener('click', () => {
+  const eng = englishInput.value ?? '';
+  const chi = chineseInput.value ?? '';
+  displayStory({ english: eng, chinese: chi, title: '(Manual)' }, '(Manual)');
+  if (autoTTS.checked) speakBoth(eng, chi);
 });
 
-/* ========== Display & Export ========== */
+/* ========= Display ========= */
 function displayStory(story, label){
   englishDisplay.textContent = story.english || '';
   chineseDisplay.textContent = story.chinese || '';
   nowReading.textContent = `Now reading: ${label || (story.title ?? '—')}`;
-  englishDisplay.scrollTop = 0; chineseDisplay.scrollTop = 0;
+  // scroll to top each time
+  englishDisplay.scrollTop = 0;
+  chineseDisplay.scrollTop = 0;
 }
 
-shareBtn.addEventListener('click', () => {
-  const en = englishDisplay.textContent || '';
-  const zh = chineseDisplay.textContent || '';
-  if (!en && !zh) return;
-  const blob = new Blob([en + "\\n\\n---\\n\\n" + zh], {type:'text/plain'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'story.txt'; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url), 5000);
-});
+/* ========= TTS ========= */
+let voices = [];
+let enVoice = null, zhVoice = null;
 
-/* ========== Install Prompt (Add to Home Screen) ========== */
-let deferredPrompt = null;
-const installBtn = document.getElementById('installBtn');
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  installBtn.hidden = false;
-});
-installBtn.addEventListener('click', async () => {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  deferredPrompt = null;
-  installBtn.hidden = true;
-});
+function loadVoices(){
+  return new Promise(resolve => {
+    const handler = () => {
+      voices = speechSynthesis.getVoices();
+      enVoice = pickVoice(['en-US','en-GB','en']);
+      zhVoice = pickVoice(['zh-CN','zh-TW','zh']);
+      resolve();
+    };
+    speechSynthesis.onvoiceschanged = handler;
+    // in some browsers voices are ready immediately
+    handler();
+    // fallback timeout
+    setTimeout(handler, 400);
+  });
+}
 
-/* ========== Service Worker ========== */
+function pickVoice(preferredLangs){
+  const v = speechSynthesis.getVoices();
+  // best match by startsWith
+  for (const lang of preferredLangs){
+    const match = v.find(x => (x.lang || '').toLowerCase().startsWith(lang.toLowerCase()));
+    if (match) return match;
+  }
+  // any English/Chinese voice
+  if (preferredLangs[0].startsWith('en')) {
+    return v.find(x => (x.lang || '').toLowerCase().startsWith('en')) || null;
+  }
+  if (preferredLangs[0].startsWith('zh')) {
+    return v.find(x => (x.lang || '').toLowerCase().startsWith('zh')) || null;
+  }
+  return null;
+}
+
+function speak(text, lang, voice){
+  if (!('speechSynthesis' in window) || !text) return null;
+  const u = new SpeechSynthesisUtterance(text);
+  if (voice) u.voice = voice;
+  u.lang = lang;
+  speechSynthesis.speak(u);
+  return u;
+}
+
+function stopSpeaking(){
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+}
+
+async function speakBoth(english, chinese){
+  if (!('speechSynthesis' in window)) return;
+  stopSpeaking();
+  await loadVoices();
+
+  return new Promise(resolve => {
+    const enUtter = speak(english, (enVoice?.lang || 'en-US'), enVoice);
+    if (!enUtter) { // if no english, just speak chinese
+      const zhUtter = speak(chinese, (zhVoice?.lang || 'zh-CN'), zhVoice);
+      if (!zhUtter) return resolve();
+      zhUtter.onend = () => resolve();
+      return;
+    }
+    enUtter.onend = () => {
+      const zhUtter = speak(chinese, (zhVoice?.lang || 'zh-CN'), zhVoice);
+      if (!zhUtter) return resolve();
+      zhUtter.onend = () => resolve();
+    };
+  });
+}
+
+replayENBtn.addEventListener('click', async () => {
+  stopSpeaking();
+  await loadVoices();
+  speak(englishDisplay.textContent, (enVoice?.lang || 'en-US'), enVoice);
+});
+replayZHBtn.addEventListener('click', async () => {
+  stopSpeaking();
+  await loadVoices();
+  speak(chineseDisplay.textContent, (zhVoice?.lang || 'zh-CN'), zhVoice);
+});
+stopAllBtn.addEventListener('click', stopSpeaking);
+
+/* ========= Status ========= */
+function updateStatus(){
+  let fileCount = datasets.size;
+  let storyCount = 0;
+  for (const ds of datasets.values()) storyCount += (ds.stories?.length || 0);
+  statusPill.textContent = `${fileCount} file${fileCount!==1?'s':''} • ${storyCount} stor${storyCount===1?'y':'ies'}`;
+}
+
+/* ========= Init ========= */
+updateFileSelector();
+updateStatus();
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').catch(console.error);
 }
-
-/* ========== Init ========== */
-loadLibrary().catch(console.error);
 </script>
 </body>
 </html>
