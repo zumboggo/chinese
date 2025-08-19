@@ -6,7 +6,7 @@
 <title>Parallel Text Reader (Single File)</title>
 <style>
   :root {
-    --bg: #f0f4ff;
+    --bg: linear-gradient(to bottom, #87CEEB, #E0F7FF);
     --card: #ffffff;
     --primary: #1d4ed8;
     --text: #111827;
@@ -111,7 +111,7 @@
     <section class="card row">
       <div class="toolbar">
         <div class="pill" id="nowReading">Now reading: —</div>
-        <button id="replayZH" class="ghost">Replay Chinese</button>
+        <button id="playZH" class="ghost">Play Chinese</button>
         <button id="stopAll" class="ghost">Stop Audio</button>
       </div>
       <div class="reader">
@@ -138,7 +138,7 @@ let currentChinese = '';
 
 const csvInput = document.getElementById('csvInput');
 const clearAllBtn = document.getElementById('clearAll');
-const replayZHBtn = document.getElementById('replayZH');
+const playZHBtn = document.getElementById('playZH');
 const stopAllBtn = document.getElementById('stopAll');
 const scrollSpeed = document.getElementById('scrollSpeed');
 
@@ -296,7 +296,7 @@ scrollSpeed.addEventListener('input', () => {
   }
   const speed = parseInt(scrollSpeed.value, 10);
   if (speed > 0) {
-    const delay = 1000 / speed;
+    const delay = 1000 / (speed * 1.4);
     scrollInterval = setInterval(() => {
       englishDisplay.scrollTop += 1;
     }, delay);
@@ -367,7 +367,7 @@ async function speakChinese(chinese){
     zhUtter.onend = () => resolve();
   });
 }
-replayZHBtn.addEventListener('click', async () => {
+playZHBtn.addEventListener('click', async () => {
   await speakChinese(currentChinese);
 });
 stopAllBtn.addEventListener('click', stopSpeaking);

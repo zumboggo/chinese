@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#2563eb">
 <style>
   :root {
-    --bg: #f9fafb;
+    --bg: linear-gradient(to bottom, #87CEEB, #E0F7FF);
     --card: #ffffff;
     --primary: #1f2937;
     --text: #1f2937;
@@ -132,7 +132,7 @@
     <section class="card row">
       <div class="toolbar">
         <div class="pill" id="nowReading">Now reading: —</div>
-        <button id="replayZH" class="ghost">Replay</button>
+        <button id="playZH" class="ghost">Play Chinese</button>
         <button id="stopAll" class="ghost">Stop Audio</button>
       </div>
       <div class="reader">
@@ -159,7 +159,7 @@ const autoTTS = document.getElementById('autoTTS');
 const csvInput = document.getElementById('csvInput');
 const loadManualBtn = document.getElementById('loadManual');
 const clearAllBtn = document.getElementById('clearAll');
-const replayZHBtn = document.getElementById('replayZH');
+const playZHBtn = document.getElementById('playZH');
 const stopAllBtn = document.getElementById('stopAll');
 
 let currentEnglishLines = [];
@@ -403,7 +403,7 @@ async function speakChineseLines(){
   speakNext();
 }
 
-replayZHBtn.addEventListener('click', speakChineseLines);
+playZHBtn.addEventListener('click', speakChineseLines);
 stopAllBtn.addEventListener('click', stopSpeaking);
 
 /* ========= Status ========= */
