@@ -27,19 +27,18 @@
     <label>Repetitions:
       <input type="number" id="repetitions" min="1" max="5" value="1" />
     </label>
-    <label>
-      <input type="checkbox" id="shadowMode" /> Shadowing mode
-    </label>
-  </section>
+    </section>
 
-  <section id="drill-section" hidden>
-    <h2 id="progress">Progress: 0/0</h2>
-    <p id="sentence"></p>
-    <p id="translation"></p>
-    <button id="againBtn">Again</button>
-    <button id="goodBtn">Good</button>
-  </section>
+    <section id="drill-section" hidden>
+      <h2 id="progress">Progress: 0/0</h2>
+      <p id="word"></p>
+      <p id="sentence"></p>
+      <p id="translation"></p>
+      <button id="studyBtn">Study</button>
+      <p id="message" class="message" hidden></p>
+    </section>
 
-  <script src="app.js"></script>
-</body>
-</html>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+  </html>
