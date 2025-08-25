@@ -1,0 +1,16 @@
+body {
+  font-family: sans-serif;
+  margin: 1rem;
+}
+#sentence {
+  font-size: 1.5rem;
+  margin-top: 1rem;
+}
+#translation {
+  color: #555;
+  margin-bottom: 1rem;
+}
+button {
+  margin-right: 0.5rem;
+  padding: 0.5rem 1rem;
+}
