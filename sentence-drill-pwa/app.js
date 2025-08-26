@@ -1,33 +1,17 @@
-const deckKey = 'sdDeck';
-const statsKey = 'sdStats';
 const settingsKey = 'sdSettings';
 let deck = [];
-let stats = { drilled: 0, unique: 0 };
-let settings = { voice: null, rate: 1, repetitions: 1, shadow: false };
-let current = null;
+let settings = { voice: null, rate: 1, repetitions: 1 };
+let studyIndex = 0;
 
-function saveState() {
-  localStorage.setItem(deckKey, JSON.stringify(deck));
-  localStorage.setItem(statsKey, JSON.stringify(stats));
+function saveSettings() {
   localStorage.setItem(settingsKey, JSON.stringify(settings));
 }
 
-function loadState() {
-  const d = localStorage.getItem(deckKey);
-  const s = localStorage.getItem(statsKey);
+function loadSettings() {
   const set = localStorage.getItem(settingsKey);
-  if (d) deck = JSON.parse(d);
-  if (s) stats = JSON.parse(s);
   if (set) settings = { ...settings, ...JSON.parse(set) };
   document.getElementById('repetitions').value = settings.repetitions;
   document.getElementById('rate').value = settings.rate;
-  document.getElementById('shadowMode').checked = settings.shadow;
-  updateProgress();
-}
-
-function updateProgress() {
-  const progress = document.getElementById('progress');
-  progress.textContent = `Progress: ${stats.unique}/${deck.length}`;
 }
 
 function populateVoices() {
@@ -45,7 +29,7 @@ function populateVoices() {
 
 speechSynthesis.onvoiceschanged = populateVoices;
 
-function speak(text, rep) {
+function speak(text, rep, onComplete) {
   let count = 0;
   function once() {
     const utter = new SpeechSynthesisUtterance(text);
@@ -56,8 +40,9 @@ function speak(text, rep) {
     utter.onend = () => {
       count++;
       if (count < rep) {
-        const delay = settings.shadow ? 700 : 0;
-        setTimeout(once, delay);
+        setTimeout(once, 0);
+      } else if (onComplete) {
+        onComplete();
       }
     };
     speechSynthesis.speak(utter);
@@ -65,54 +50,48 @@ function speak(text, rep) {
   once();
 }
 
-function nextItem() {
-  const now = Date.now();
-  const due = deck.filter(item => !item.next || item.next <= now);
-  if (!due.length) {
-    document.getElementById('sentence').textContent = 'All done for now';
-    document.getElementById('translation').textContent = '';
-    current = null;
-    return;
-  }
-  // randomize
-  const item = due[Math.floor(Math.random() * due.length)];
-  current = item;
-  document.getElementById('sentence').textContent = item.text;
-  document.getElementById('translation').textContent = item.translation || '';
-  speak(item.text, settings.repetitions);
+function updateProgress() {
+  const progress = document.getElementById('progress');
+  progress.textContent = `Completed ${Math.min(studyIndex, deck.length)}/${deck.length}`;
 }
 
-function schedule(item, again) {
-  if (again) {
-    item.interval = 1; // minutes
-  } else {
-    item.interval = item.interval ? item.interval * 2 : 1;
+function splitCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
   }
-  item.next = Date.now() + item.interval * 60 * 1000;
-  if (!item.reps) item.reps = 0;
-  if (item.reps === 0) stats.unique++;
-  item.reps++;
-  stats.drilled++;
-  saveState();
-  updateProgress();
-}
-
-function handleResult(again) {
-  if (!current) return;
-  schedule(current, again);
-  nextItem();
+  result.push(current);
+  return result;
 }
 
 function parseCSV(text) {
+  deck = [];
   const lines = text.split(/\r?\n/);
   lines.forEach((line, idx) => {
-    const [text, translation] = line.split(',');
-    if (text) deck.push({ id: idx + 1, text: text.trim(), translation: translation ? translation.trim() : '', interval: 0, next: 0, reps: 0 });
+    if (!line.trim()) return;
+    const parts = splitCSVLine(line).map(s => s.trim());
+    const [word, chinese, english] = parts;
+    if (chinese && english) {
+      deck.push({
+        id: idx + 1,
+        word: word || '',
+        text: chinese,
+        translation: english
+      });
+    }
   });
-  saveState();
-  updateProgress();
   document.getElementById('drill-section').hidden = false;
-  nextItem();
+  updateProgress();
 }
 
 function importFile(file) {
@@ -123,6 +102,43 @@ function importFile(file) {
 
 function fetchCSV(url) {
   fetch(url).then(r => r.text()).then(parseCSV);
+}
+
+function celebrate() {
+  confetti();
+  const messages = ['Nice job!', "You're getting there!"];
+  const msg = messages[Math.floor(Math.random() * messages.length)];
+  const msgEl = document.getElementById('message');
+  msgEl.textContent = msg;
+  msgEl.hidden = false;
+  setTimeout(() => {
+    msgEl.hidden = true;
+  }, 3000);
+}
+
+function startStudy() {
+  if (!deck.length) return;
+  const reps = parseInt(document.getElementById('repetitions').value, 10);
+  const subset = deck.slice(studyIndex, studyIndex + 5);
+  if (!subset.length) return;
+  let idx = 0;
+  function next() {
+    if (idx >= subset.length) {
+      studyIndex += subset.length;
+      updateProgress();
+      celebrate();
+      return;
+    }
+    const item = subset[idx];
+    document.getElementById('word').textContent = item.word;
+    document.getElementById('sentence').textContent = item.text;
+    document.getElementById('translation').textContent = item.translation;
+    speak(item.text, reps, () => {
+      idx++;
+      next();
+    });
+  }
+  next();
 }
 
 // Event listeners
@@ -137,39 +153,29 @@ document.getElementById('fetchCsv').addEventListener('click', () => {
   if (url) fetchCSV(url);
 });
 
-document.getElementById('againBtn').addEventListener('click', () => handleResult(true));
-document.getElementById('goodBtn').addEventListener('click', () => handleResult(false));
-
 document.getElementById('voiceSelect').addEventListener('change', e => {
   const voices = speechSynthesis.getVoices();
   settings.voice = voices[e.target.value] ? voices[e.target.value].name : null;
-  saveState();
+  saveSettings();
 });
 
 document.getElementById('repetitions').addEventListener('change', e => {
   settings.repetitions = parseInt(e.target.value, 10);
-  saveState();
+  saveSettings();
 });
 
 document.getElementById('rate').addEventListener('change', e => {
   settings.rate = parseFloat(e.target.value);
-  saveState();
+  saveSettings();
 });
 
-document.getElementById('shadowMode').addEventListener('change', e => {
-  settings.shadow = e.target.checked;
-  saveState();
-});
+document.getElementById('studyBtn').addEventListener('click', startStudy);
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js');
 }
 
 window.addEventListener('load', () => {
-  loadState();
+  loadSettings();
   populateVoices();
-  if (deck.length) {
-    document.getElementById('drill-section').hidden = false;
-    nextItem();
-  }
 });
