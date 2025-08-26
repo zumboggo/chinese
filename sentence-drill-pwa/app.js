@@ -3,6 +3,13 @@ let deck = [];
 let settings = { voice: null, rate: 1, repetitions: 1 };
 let studyIndex = 0;
 
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
 function saveSettings() {
   localStorage.setItem(settingsKey, JSON.stringify(settings));
 }
@@ -76,6 +83,7 @@ function splitCSVLine(line) {
 
 function parseCSV(text) {
   deck = [];
+  studyIndex = 0;
   const lines = text.split(/\r?\n/);
   lines.forEach((line, idx) => {
     if (!line.trim()) return;
@@ -90,6 +98,7 @@ function parseCSV(text) {
       });
     }
   });
+  shuffle(deck);
   document.getElementById('drill-section').hidden = false;
   updateProgress();
 }
@@ -118,6 +127,11 @@ function celebrate() {
 
 function startStudy() {
   if (!deck.length) return;
+  if (studyIndex >= deck.length) {
+    studyIndex = 0;
+    shuffle(deck);
+    updateProgress();
+  }
   const reps = parseInt(document.getElementById('repetitions').value, 10);
   const subset = deck.slice(studyIndex, studyIndex + 5);
   if (!subset.length) return;
