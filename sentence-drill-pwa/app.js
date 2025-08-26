@@ -3,6 +3,7 @@ let deck = [];
 let settings = { voice: null, rate: 1, repetitions: 1 };
 let studyIndex = 0;
 
+
 function saveSettings() {
   localStorage.setItem(settingsKey, JSON.stringify(settings));
 }
@@ -53,22 +54,16 @@ function speak(text, rep, onComplete) {
 function updateProgress() {
   const progress = document.getElementById('progress');
   progress.textContent = `Completed ${Math.min(studyIndex, deck.length)}/${deck.length}`;
+
 }
 
 function parseCSV(text) {
+  deck = [];
+  studyIndex = 0;
   const lines = text.split(/\r?\n/);
   lines.forEach((line, idx) => {
     if (!line.trim()) return;
-    const [word, chinese, english] = line.split(',');
-    if (chinese && english) {
-      deck.push({
-        id: idx + 1,
-        word: word ? word.trim() : '',
-        text: chinese.trim(),
-        translation: english.trim()
-      });
-    }
-  });
+
   document.getElementById('drill-section').hidden = false;
   updateProgress();
 }
@@ -97,6 +92,7 @@ function celebrate() {
 
 function startStudy() {
   if (!deck.length) return;
+
   const reps = parseInt(document.getElementById('repetitions').value, 10);
   const subset = deck.slice(studyIndex, studyIndex + 5);
   if (!subset.length) return;
