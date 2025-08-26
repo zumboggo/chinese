@@ -3,12 +3,6 @@ let deck = [];
 let settings = { voice: null, rate: 1, repetitions: 1 };
 let studyIndex = 0;
 
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-}
 
 function saveSettings() {
   localStorage.setItem(settingsKey, JSON.stringify(settings));
@@ -60,25 +54,7 @@ function speak(text, rep, onComplete) {
 function updateProgress() {
   const progress = document.getElementById('progress');
   progress.textContent = `Completed ${Math.min(studyIndex, deck.length)}/${deck.length}`;
-}
 
-function splitCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current);
-  return result;
 }
 
 function parseCSV(text) {
@@ -87,18 +63,7 @@ function parseCSV(text) {
   const lines = text.split(/\r?\n/);
   lines.forEach((line, idx) => {
     if (!line.trim()) return;
-    const parts = splitCSVLine(line).map(s => s.trim());
-    const [word, chinese, english] = parts;
-    if (chinese && english) {
-      deck.push({
-        id: idx + 1,
-        word: word || '',
-        text: chinese,
-        translation: english
-      });
-    }
-  });
-  shuffle(deck);
+
   document.getElementById('drill-section').hidden = false;
   updateProgress();
 }
@@ -127,11 +92,7 @@ function celebrate() {
 
 function startStudy() {
   if (!deck.length) return;
-  if (studyIndex >= deck.length) {
-    studyIndex = 0;
-    shuffle(deck);
-    updateProgress();
-  }
+
   const reps = parseInt(document.getElementById('repetitions').value, 10);
   const subset = deck.slice(studyIndex, studyIndex + 5);
   if (!subset.length) return;
