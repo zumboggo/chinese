@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sentence Drill</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1rem;
+      background: linear-gradient(135deg, #d8f3dc 0%, #b7e4c7 50%, #95d5b2 100%);
+      min-height: 100vh;
+    }
+    #sentence {
+      font-size: 1.5rem;
+      margin-top: 1rem;
+    }
+    #translation {
+      color: #555;
+      margin-bottom: 1rem;
+    }
+    button {
+      margin-right: 0.5rem;
+      padding: 0.5rem 1rem;
+    }
+    #word {
+      font-weight: bold;
+    }
+    .message {
+      font-size: 1.25rem;
+      margin-top: 1rem;
+      color: #1b4332;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sentence Drill</h1>
+  <section id="import-section">
+    <h2>Import Sentences</h2>
+    <input type="file" id="csvFile" accept="text/csv" />
+    <input type="url" id="csvUrl" placeholder="CSV URL" />
+    <button id="fetchCsv">Fetch CSV</button>
+  </section>
+
+  <section id="settings-section">
+    <h2>Settings</h2>
+    <label>Voice:
+      <select id="voiceSelect"></select>
+    </label>
+    <label>Rate:
+      <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1" />
+    </label>
+    <label>Repetitions:
+      <input type="number" id="repetitions" min="1" max="5" value="1" />
+    </label>
+  </section>
+
+  <section id="drill-section" hidden>
+    <h2 id="progress">Progress: 0/0</h2>
+    <p id="word"></p>
+    <p id="sentence"></p>
+    <p id="translation"></p>
+    <button id="studyBtn">Study</button>
+    <p id="message" class="message" hidden></p>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script>
+    const settingsKey = 'sdSettings';
+    let deck = [];
+    let settings = { voice: null, rate: 1, repetitions: 1 };
+    let studyIndex = 0;
+
+    function saveSettings() {
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
+    }
+
+    function loadSettings() {
+      const set = localStorage.getItem(settingsKey);
+      if (set) settings = { ...settings, ...JSON.parse(set) };
+      document.getElementById('repetitions').value = settings.repetitions;
+      document.getElementById('rate').value = settings.rate;
+    }
+
+    function populateVoices() {
+      const voices = speechSynthesis.getVoices();
+      const select = document.getElementById('voiceSelect');
+      select.innerHTML = '';
+      voices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${v.name} (${v.lang})`;
+        if (settings.voice && settings.voice === v.name) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    speechSynthesis.onvoiceschanged = populateVoices;
+
+    function speak(text, rep, onComplete) {
+      let count = 0;
+      function once() {
+        const utter = new SpeechSynthesisUtterance(text);
+        const voices = speechSynthesis.getVoices();
+        const voiceIndex = document.getElementById('voiceSelect').value;
+        utter.voice = voices[voiceIndex] || null;
+        utter.rate = parseFloat(document.getElementById('rate').value);
+        utter.onend = () => {
+          count++;
+          if (count < rep) {
+            setTimeout(once, 0);
+          } else if (onComplete) {
+            onComplete();
+          }
+        };
+        speechSynthesis.speak(utter);
+      }
+      once();
+    }
+
+    function updateProgress() {
+      const progress = document.getElementById('progress');
+      progress.textContent = `Completed ${Math.min(studyIndex, deck.length)}/${deck.length}`;
+    }
+
+    function showFirstSentence() {
+      if (!deck.length) return;
+      const item = deck[0];
+      document.getElementById('word').textContent = item.word;
+      document.getElementById('sentence').textContent = item.text;
+      document.getElementById('translation').textContent = item.translation;
+      const reps = parseInt(document.getElementById('repetitions').value, 10);
+      speak(item.text, reps);
+      studyIndex = 1;
+      updateProgress();
+    }
+
+    function parseCSV(text) {
+      deck = [];
+      const lines = text.split(/\r?\n/);
+      lines.forEach((line, idx) => {
+        if (!line.trim()) return;
+        const [word, chinese, english] = line.split(',');
+        if (chinese && english) {
+          deck.push({
+            id: idx + 1,
+            word: word ? word.trim() : '',
+            text: chinese.trim(),
+            translation: english.trim()
+          });
+        }
+      });
+      document.getElementById('drill-section').hidden = false;
+      showFirstSentence();
+    }
+
+    function importFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => parseCSV(e.target.result);
+      reader.readAsText(file);
+    }
+
+    function fetchCSV(url) {
+      fetch(url).then(r => r.text()).then(parseCSV);
+    }
+
+    function celebrate() {
+      confetti();
+      const messages = ['Nice job!', "You're getting there!"];
+      const msg = messages[Math.floor(Math.random() * messages.length)];
+      const msgEl = document.getElementById('message');
+      msgEl.textContent = msg;
+      msgEl.hidden = false;
+      setTimeout(() => {
+        msgEl.hidden = true;
+      }, 3000);
+    }
+
+    function startStudy() {
+      if (!deck.length) return;
+      const reps = parseInt(document.getElementById('repetitions').value, 10);
+      const subset = deck.slice(studyIndex, studyIndex + 5);
+      if (!subset.length) return;
+      let idx = 0;
+      function next() {
+        if (idx >= subset.length) {
+          studyIndex += subset.length;
+          updateProgress();
+          celebrate();
+          return;
+        }
+        const item = subset[idx];
+        document.getElementById('word').textContent = item.word;
+        document.getElementById('sentence').textContent = item.text;
+        document.getElementById('translation').textContent = item.translation;
+        speak(item.text, reps, () => {
+          idx++;
+          next();
+        });
+      }
+      next();
+    }
+
+    const fileInput = document.getElementById('csvFile');
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file) importFile(file);
+    });
+
+    document.getElementById('fetchCsv').addEventListener('click', () => {
+      const url = document.getElementById('csvUrl').value;
+      if (url) fetchCSV(url);
+    });
+
+    document.getElementById('voiceSelect').addEventListener('change', e => {
+      const voices = speechSynthesis.getVoices();
+      settings.voice = voices[e.target.value] ? voices[e.target.value].name : null;
+      saveSettings();
+    });
+
+    document.getElementById('repetitions').addEventListener('change', e => {
+      settings.repetitions = parseInt(e.target.value, 10);
+      saveSettings();
+    });
+
+    document.getElementById('rate').addEventListener('change', e => {
+      settings.rate = parseFloat(e.target.value);
+      saveSettings();
+    });
+
+    document.getElementById('studyBtn').addEventListener('click', startStudy);
+
+    window.addEventListener('load', () => {
+      loadSettings();
+      populateVoices();
+    });
+  </script>
+</body>
+</html>
