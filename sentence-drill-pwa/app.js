@@ -1,6 +1,6 @@
 const settingsKey = 'sdSettings';
 let deck = [];
-let settings = { voice: null, rate: 1, repetitions: 1 };
+let settings = { voice: null, rate: 1, repetitions: 1, batchSize: 5 };
 let studyIndex = 0;
 
 
@@ -13,6 +13,7 @@ function loadSettings() {
   if (set) settings = { ...settings, ...JSON.parse(set) };
   document.getElementById('repetitions').value = settings.repetitions;
   document.getElementById('rate').value = settings.rate;
+  document.getElementById('batchSize').value = settings.batchSize;
 }
 
 function populateVoices() {
@@ -94,7 +95,8 @@ function startStudy() {
   if (!deck.length) return;
 
   const reps = parseInt(document.getElementById('repetitions').value, 10);
-  const subset = deck.slice(studyIndex, studyIndex + 5);
+  const batch = parseInt(document.getElementById('batchSize').value, 10);
+  const subset = deck.slice(studyIndex, studyIndex + batch);
   if (!subset.length) return;
   let idx = 0;
   function next() {
@@ -141,6 +143,11 @@ document.getElementById('repetitions').addEventListener('change', e => {
 
 document.getElementById('rate').addEventListener('change', e => {
   settings.rate = parseFloat(e.target.value);
+  saveSettings();
+});
+
+document.getElementById('batchSize').addEventListener('change', e => {
+  settings.batchSize = parseInt(e.target.value, 10);
   saveSettings();
 });
 
