@@ -66,10 +66,20 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    const settingsKey = 'sdSettings';
-    let deck = [];
-    let settings = { voice: null, rate: 1, repetitions: 1 };
-    let studyIndex = 0;
+      const settingsKey = 'sdSettings';
+      const studyIndexKey = 'sdStudyIndex';
+      let deck = [];
+      let settings = { voice: null, rate: 1, repetitions: 1 };
+      let studyIndex = 0;
+
+      function saveStudyIndex() {
+        localStorage.setItem(studyIndexKey, studyIndex);
+      }
+
+      function loadStudyIndex() {
+        const idx = parseInt(localStorage.getItem(studyIndexKey), 10);
+        studyIndex = isNaN(idx) ? 0 : idx;
+      }
 
     function saveSettings() {
       localStorage.setItem(settingsKey, JSON.stringify(settings));
@@ -175,10 +185,11 @@
       let idx = 0;
       function next() {
         if (idx >= subset.length) {
-          studyIndex += subset.length;
-          updateProgress();
-          celebrate();
-          return;
+            studyIndex += subset.length;
+            saveStudyIndex();
+            updateProgress();
+            celebrate();
+            return;
         }
         const item = subset[idx];
         document.getElementById('word').textContent = item.word;
@@ -224,6 +235,7 @@
     window.addEventListener('load', () => {
       loadSettings();
       populateVoices();
+      loadStudyIndex();
     });
   </script>
 </body>
