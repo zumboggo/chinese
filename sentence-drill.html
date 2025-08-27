@@ -8,7 +8,6 @@
     body {
       font-family: sans-serif;
       margin: 1rem;
-      background: linear-gradient(135deg, #d8f3dc, #b7e4c7);
       min-height: 100vh;
     }
     #sentence {
@@ -123,22 +122,7 @@
       progress.textContent = `Completed ${Math.min(studyIndex, deck.length)}/${deck.length}`;
     }
 
-    function parseCSV(text) {
-      const lines = text.split(/\r?\n/);
-      lines.forEach((line, idx) => {
-        if (!line.trim()) return;
-        const [word, chinese, english] = line.split(',');
-        if (chinese && english) {
-          deck.push({
-            id: idx + 1,
-            word: word ? word.trim() : '',
-            text: chinese.trim(),
-            translation: english.trim()
-          });
-        }
-      });
-      document.getElementById('drill-section').hidden = false;
-      updateProgress();
+
     }
 
     function importFile(file) {
