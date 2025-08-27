@@ -16,10 +16,18 @@
       <input type="url" id="csvUrl" placeholder="CSV URL" />
       <button id="fetchCsv">Fetch CSV</button>
     </section>
-
-
+    <section id="settings-section">
+      <h2>Settings</h2>
+      <label>Voice:
+        <select id="voiceSelect"></select>
+      </label>
+      <label>Rate:
+        <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1" />
+      </label>
+      <label>Repetitions:
+        <input type="number" id="repetitions" min="1" max="5" value="1" />
+      </label>
     </section>
-
     <section id="drill-section" hidden>
       <h2 id="progress">Progress: 0/0</h2>
       <p id="word"></p>
@@ -28,4 +36,9 @@
       <button id="studyBtn">Study</button>
       <p id="message" class="message" hidden></p>
     </section>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
 
