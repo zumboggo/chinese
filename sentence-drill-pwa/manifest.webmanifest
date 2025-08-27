@@ -1,9 +1,0 @@
-{
-  "name": "Sentence Drill",
-  "short_name": "Drill",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "description": "Glossika-style sentence drilling PWA",
-  "icons": []
-}
