@@ -1,0 +1,50 @@
+/* Lighter, airy azure background and small tweaks to harmonize with Stop button */
+
+:root{
+  --bg-a:#e9faff; /* very light azure */
+  --bg-b:#d7f2ff; /* soft azure */
+  --card-bg: rgba(255,255,255,0.06);
+  --card-border: rgba(255,255,255,0.12);
+  --glass-blur: 8px;
+  --text: #08314a;
+  --muted: rgba(8,49,74,0.6);
+  --accent: #60a5fa;
+  --radius: 12px;
+  --max-width: 980px;
+}
+
+/* body background */
+html,body {
+  height:100%;
+  margin:0;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  background: linear-gradient(180deg, var(--bg-a) 0%, var(--bg-b) 100%);
+  background-attachment: fixed;
+  font-size: 18px;
+  line-height:1.4;
+}
+
+/* keep card appearance but lighter */
+.card {
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(6,34,52,0.06);
+  border-radius: var(--radius);
+  padding:18px;
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 8px 22px rgba(3,20,34,0.08);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(3,20,34,0.10); }
+
+/* button destructive style for Stop */
+.btn.destructive {
+  background: linear-gradient(180deg, #ff6b6b, #ff4d4d);
+  color: white;
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 18px rgba(255,77,77,0.12);
+}

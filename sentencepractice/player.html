@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sentence Drill — Player</title>
+  <style>
+    :root { --bg:#fff; --fg:#111; --muted:#666; }
+    /* sky-blue gradient background */
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; padding:1rem; background: linear-gradient(180deg,#bfe9ff 0%,#9fdfff 50%,#8bd3ff 100%); color:var(--fg); }
+    header { margin-bottom:1rem; }
+    .controls { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
+    .big { font-size: clamp(2rem, 8vw, 6rem); line-height:1.05; font-weight:600; text-align:center; margin: .5rem 0; }
+    .small { font-size: clamp(1rem, 3vw, 2rem); text-align:center; color:var(--muted); }
+    .settings { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
+    label { font-size:.9rem; color:var(--muted); }
+    .btn { padding:.5rem .8rem; border:1px solid #ccc; background:#f8f8f8; cursor:pointer; border-radius:6px; }
+    .btn.primary { background:#0366d6; color:#fff; border-color:#0366d6; }
+    /* ensure english appears darker (closer to black) */
+    #english { color: var(--fg); }
+    #progressCounter { margin-left:0.75rem; color:#222; font-weight:600; }
+
+    /* confetti */
+    #confetti { position: fixed; pointer-events: none; left:0; top:0; width:100%; height:0; overflow:visible; z-index:9999; }
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 16px;
+      opacity: 0.95;
+      transform-origin: center;
+      will-change: transform, opacity;
+      animation: confetti-fall 1200ms linear forwards;
+    }
+    @keyframes confetti-fall {
+      0% { transform: translateY(-10vh) rotate(0deg) scale(1); opacity:1; }
+      100% { transform: translateY(110vh) rotate(720deg) scale(0.9); opacity:0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sentence Drill</h1>
+  </header>
+
+  <div class="settings">
+    <label for="voiceSelect">Voice</label>
+    <select id="voiceSelect"></select>
+
+    <label for="sourceLang">Source</label>
+    <select id="sourceLang">
+      <option value="zh-CN" selected>zh-CN</option>
+      <option value="zh-TW">zh-TW</option>
+    </select>
+
+    <label for="targetLang">Target</label>
+    <select id="targetLang">
+      <option value="en-US" selected>en-US</option>
+      <option value="en-GB">en-GB</option>
+    </select>
+
+    <label for="rate">Rate</label>
+    <input id="rate" type="range" min="0.5" max="2" step="0.05" value="0.85" />
+    <span id="rateValue">1.00</span>
+
+    <!-- New minimal controls -->
+    <label for="repetitions">Repetitions</label>
+    <input id="repetitions" type="number" min="1" value="3" style="width:4rem" />
+
+    <label for="groupSize">Group Size</label>
+    <input id="groupSize" type="number" min="1" value="5" style="width:4rem" />
+
+    <label for="shadow" title="Pause before English so you can recall and speak aloud">Shadow</label>
+    <input id="shadow" type="checkbox" />
+
+    <label for="shadowDuration" title="Pause duration in milliseconds">Shadow ms</label>
+    <input id="shadowDuration" type="number" min="0" step="100" value="1500" style="width:5rem" />
+
+    <label for="randomize" title="Randomize order within the study group">Randomize</label>
+    <input id="randomize" type="checkbox" checked />
+
+    <label for="autoAdvance" title="Automatically advance to the next group after finishing">Auto-advance</label>
+    <input id="autoAdvance" type="checkbox" />
+  </div>
+
+  <div style="text-align:center; margin-top:1rem;">
+    <div id="chinese" class="big">—</div>
+    <div id="english" class="big" style="font-weight:400;">—</div>
+  </div>
+
+  <div class="controls" style="justify-content:center; margin-top:1rem;">
+    <button id="playBtn" class="btn primary">Play</button>
+    <button id="nextBtn" class="btn">Next</button>
+    <button id="prevBtn" class="btn">Prev</button>
+    <button id="stopBtn" class="btn">Stop</button>
+    <button id="studyBtn" class="btn">Study</button>
+    <button id="backImport" class="btn">Back to Import</button>
+    <span id="progressCounter" hidden>0 / 0</span>
+  </div>
+
+  <div id="confetti" aria-hidden="true"></div>
+
+  <script>
+    // load sentences from sessionStorage
+    const sentencesRaw = sessionStorage.getItem('sentences');
+    let sentences = [];
+    try { sentences = sentencesRaw ? JSON.parse(sentencesRaw) : []; } catch(e){ sentences = []; }
+    if (!sentences || !sentences.length) {
+      document.getElementById('chinese').textContent = 'No sentences loaded.';
+      document.getElementById('english').textContent = '';
+    }
+
+    // UI refs (extended)
+    const chEl = document.getElementById('chinese');
+    const enEl = document.getElementById('english');
+    const playBtn = document.getElementById('playBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const studyBtn = document.getElementById('studyBtn');
+    const backBtn = document.getElementById('backImport');
+    const rateEl = document.getElementById('rate');
+    const rateValue = document.getElementById('rateValue');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const sourceLangEl = document.getElementById('sourceLang');
+    const targetLangEl = document.getElementById('targetLang');
+    const shadowEl = document.getElementById('shadow');
+    const shadowDurationEl = document.getElementById('shadowDuration');
+    const repetitionsEl = document.getElementById('repetitions');
+    const groupSizeEl = document.getElementById('groupSize');
+    const randomizeEl = document.getElementById('randomize');
+    const autoAdvanceEl = document.getElementById('autoAdvance');
+    const progressCounter = document.getElementById('progressCounter');
+
+    let idx = 0;
+    function show(i){
+      if (!sentences.length) return;
+      idx = (i + sentences.length) % sentences.length;
+      chEl.textContent = sentences[idx].chinese || '';
+      enEl.textContent = sentences[idx].english || '';
+    }
+    show(0);
+
+    // speech synthesis helpers (refactored to promises)
+    let synth = window.speechSynthesis;
+    let voices = [];
+    function populateVoices(){
+      voices = synth.getVoices();
+      voiceSelect.innerHTML = '';
+      voices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = `${v.name} — ${v.lang}`;
+        voiceSelect.appendChild(opt);
+      });
+
+      // Try to auto-select Microsoft "Huihui" if available, otherwise keep first voice
+      const hui = voices.find(v => v.name && v.name.toLowerCase().includes('huihui'));
+      if (hui) {
+        voiceSelect.value = hui.name;
+      } else if (voiceSelect.options.length) {
+        voiceSelect.selectedIndex = 0;
+      }
+    }
+    populateVoices();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = populateVoices;
+    }
+
+    function speakPromise(text, lang){
+      return new Promise(resolve => {
+        if (!text) { resolve(); return; }
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = lang || '';
+        const sel = voiceSelect.value;
+        if (sel) {
+          const v = voices.find(x => x.name === sel);
+          if (v) u.voice = v;
+        }
+        u.rate = parseFloat(rateEl.value) || 1;
+        u.onend = () => resolve();
+        synth.speak(u);
+      });
+    }
+
+    function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+    let isPlaying = false;
+
+    function setControlsEnabled(enabled){
+      // keep stopBtn enabled when enabled===false so user can stop
+      const list = [playBtn, nextBtn, prevBtn, studyBtn, backBtn, voiceSelect, sourceLangEl, targetLangEl, repetitionsEl, groupSizeEl, randomizeEl, rateEl, shadowEl, shadowDurationEl];
+      list.forEach(el => {
+        try { el.disabled = !enabled; } catch(e){}
+      });
+      // stop button enabled when playing (enabled=false) and when enabled=true
+      stopBtn.disabled = enabled;
+      progressCounter.hidden = enabled;
+      if (enabled) progressCounter.textContent = '';
+    }
+
+    async function playSentenceOnce(s){
+      if (!isPlaying) return;
+      await speakPromise(s.chinese || '', sourceLangEl.value);
+      if (!isPlaying) return;
+      if (shadowEl.checked) {
+        const ms = Math.max(0, parseInt(shadowDurationEl.value) || 1500);
+        await delay(ms);
+      }
+      if (!isPlaying) return;
+      await speakPromise(s.english || '', targetLangEl.value);
+    }
+
+    async function playCurrent(){
+      if (!sentences.length) return;
+      if (isPlaying) return;
+      isPlaying = true;
+      setControlsEnabled(false);
+      const s = sentences[idx];
+      const times = Math.max(1, parseInt(repetitionsEl.value) || 1);
+      try {
+        synth.cancel();
+        for (let t = 0; t < times; t++){
+          if (!isPlaying) break;
+          await playSentenceOnce(s);
+          if (!isPlaying) break;
+          if (t < times - 1) await delay(400);
+        }
+      } finally {
+        isPlaying = false;
+        setControlsEnabled(true);
+      }
+    }
+
+    // Fisher-Yates shuffle
+    function shuffle(array){
+      for (let i = array.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    // confetti + sound helpers
+    function playFireworksSound(){
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        // short burst oscillator
+        const o1 = ctx.createOscillator();
+        const o2 = ctx.createOscillator();
+        const g = ctx.createGain();
+        o1.type = 'sawtooth';
+        o2.type = 'sine';
+        o1.frequency.setValueAtTime(600, now);
+        o2.frequency.setValueAtTime(200, now);
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+        o1.connect(g); o2.connect(g); g.connect(ctx.destination);
+        o1.start(now); o2.start(now);
+        o1.stop(now + 0.85); o2.stop(now + 0.85);
+        // quick percussive noise for sizzle
+        const bufferSize = 2 * ctx.sampleRate;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) output[i] = (Math.random() * 2 - 1) * Math.exp(-i / 3000);
+        const noise = ctx.createBufferSource();
+        const noiseGain = ctx.createGain();
+        noise.buffer = noiseBuffer;
+        noise.connect(noiseGain);
+        noiseGain.connect(ctx.destination);
+        noiseGain.gain.setValueAtTime(0.08, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+        noise.start(now); noise.stop(now + 0.6);
+      } catch (e) {
+        // ignore sound failures
+      }
+    }
+
+    function showConfetti(count = 40){
+      const container = document.getElementById('confetti');
+      const colors = ['#f94144','#f3722c','#f9c74f','#90be6d','#43aa8b','#577590','#277da1'];
+      const w = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+      for (let i = 0; i < count; i++){
+        const el = document.createElement('div');
+        el.className = 'confetti-piece';
+        el.style.background = colors[Math.floor(Math.random() * colors.length)];
+        const left = Math.random() * w;
+        el.style.left = `${left}px`;
+        el.style.top = `${-10 - Math.random()*20}vh`;
+        el.style.transform = `translateY(-10vh) rotate(${Math.random()*360}deg)`;
+        el.style.opacity = String(0.9 + Math.random() * 0.1);
+        el.style.animationDelay = `${Math.random()*200}ms`;
+        el.style.width = `${8 + Math.random()*8}px`;
+        el.style.height = `${10 + Math.random()*12}px`;
+        container.appendChild(el);
+        // remove later
+        setTimeout(()=> el.remove(), 1600 + Math.random()*400);
+      }
+    }
+
+    async function studyGroup(){
+      if (!sentences.length) return;
+      if (isPlaying) return;
+      isPlaying = true;
+      setControlsEnabled(false);
+      synth.cancel();
+      // We'll loop rounds if auto-advance is enabled. Each round picks groupIndices depending on randomize setting.
+      const reps = Math.max(1, parseInt(repetitionsEl.value) || 1);
+      let round = 0;
+      try {
+        while (isPlaying) {
+          round++;
+          const groupSize = Math.max(1, Math.min(sentences.length, parseInt(groupSizeEl.value) || 1));
+          const startIdx = idx;
+          // build group indices for this round
+          let groupIndices = [];
+          if (randomizeEl.checked) {
+            const allIndices = [...Array(sentences.length).keys()];
+            shuffle(allIndices);
+            groupIndices = allIndices.slice(0, groupSize);
+          } else {
+            for (let i = 0; i < groupSize; i++){
+              groupIndices.push( (startIdx + i) % sentences.length );
+            }
+          }
+          // build seq with repeats
+          let seq = [];
+          groupIndices.forEach(i => {
+            for (let r = 0; r < reps; r++) seq.push(i);
+          });
+          if (randomizeEl.checked) seq = shuffle(seq);
+
+          progressCounter.hidden = false;
+          for (let k = 0; k < seq.length; k++){
+            if (!isPlaying) break;
+            const sIdx = seq[k];
+            show(sIdx);
+            progressCounter.textContent = `${k+1} / ${seq.length}`;
+            await playSentenceOnce(sentences[sIdx]);
+            if (!isPlaying) break;
+            await delay(300);
+          }
+
+          // end of round: confetti + sound
+          if (isPlaying) {
+            showConfetti(48);
+            playFireworksSound();
+            await delay(600);
+          }
+
+          // if not auto-advance, break; otherwise prepare next round
+          if (!autoAdvanceEl || !autoAdvanceEl.checked) {
+            // advance visible index only when not random global selection
+            if (!randomizeEl.checked) show(startIdx + groupSize);
+            break;
+          } else {
+            // if not randomize, advance idx to after this group for next round
+            if (!randomizeEl.checked) {
+              idx = (startIdx + groupSize) % sentences.length;
+            }
+            // continue loop for next round
+            await delay(300);
+          }
+        }
+      } finally {
+        isPlaying = false;
+        setControlsEnabled(true);
+      }
+    }
+
+    // controls wiring
+    playBtn.addEventListener('click', () => { playCurrent(); });
+    nextBtn.addEventListener('click', () => { show(idx+1); });
+    prevBtn.addEventListener('click', () => { show(idx-1); });
+    stopBtn.addEventListener('click', () => { synth.cancel(); isPlaying = false; setControlsEnabled(true); });
+    studyBtn.addEventListener('click', () => { studyGroup(); });
+    backBtn.addEventListener('click', () => { window.location.href = 'index.html'; });
+
+    rateEl.addEventListener('input', () => { rateValue.textContent = Number(rateEl.value).toFixed(2); });
+    // set initial displayed rate
+    rateValue.textContent = Number(rateEl.value || 0.85).toFixed(2);
+
+    // initial state
+    setControlsEnabled(true);
+  </script>
+</body>
+</html>

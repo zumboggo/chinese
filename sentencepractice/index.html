@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Custom Sentence Practice</title>
+
+  <!-- optional nicer font (requires internet) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container" style="max-width:780px;margin:2rem auto;padding:1rem;">
+    <header>
+      <h1>Custom Sentence Practice</h1>
+    </header>
+
+    <section id="import-section" class="card" style="padding:1rem;">
+      <h2>Upload CSV</h2>
+
+      <label class="sr-only" for="csvFile">CSV file</label>
+      <input type="file" id="csvFile" accept=".csv,text/csv" />
+
+      <p class="muted" style="margin-top:.5rem">
+        Upload a csv file with Chinese sentences in the first column and English translations in the second column
+      </p>
+    </section>
+  </div>
+
+  <script>
+    (function(){
+      const input = document.getElementById('csvFile');
+
+      function parseCSV(text){
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if(!lines.length) return [];
+
+        // Simple CSV split supporting quoted fields (basic)
+        const parseLine = (line) => {
+          const result = [];
+          let cur = '';
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"' ) { inQuotes = !inQuotes; continue; }
+            if (ch === ',' && !inQuotes) { result.push(cur); cur = ''; continue; }
+            cur += ch;
+          }
+          result.push(cur);
+          return result.map(s => s.trim());
+        };
+
+        const first = parseLine(lines[0]);
+        let rows = [];
+        // detect header
+        const headerNames = first.map(h => h.toLowerCase());
+        const hasHeader = headerNames.includes('chinese') && headerNames.includes('english');
+        if (hasHeader) {
+          const chIdx = headerNames.indexOf('chinese');
+          const enIdx = headerNames.indexOf('english');
+          for (let i = 1; i < lines.length; i++){
+            const cols = parseLine(lines[i]);
+            if (!cols.length) continue;
+            rows.push({
+              chinese: cols[chIdx] || '',
+              english: cols[enIdx] || ''
+            });
+          }
+        } else {
+          // assume two columns: chinese, english
+          for (let i = 0; i < lines.length; i++){
+            const cols = parseLine(lines[i]);
+            if (cols.length < 2) continue;
+            rows.push({ chinese: cols[0], english: cols[1] });
+          }
+        }
+        return rows;
+      }
+
+      input.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt){
+          try {
+            const text = evt.target.result;
+            const sentences = parseCSV(text);
+            if (!sentences.length) {
+              alert('No valid rows found in CSV.');
+              return;
+            }
+            sessionStorage.setItem('sentences', JSON.stringify(sentences));
+            sessionStorage.setItem('sentencesImportedAt', String(Date.now()));
+            window.location.href = 'player.html';
+          } catch (err) {
+            console.error(err);
+            alert('Failed to parse CSV.');
+          }
+        };
+        reader.readAsText(file, 'utf-8');
+      });
+    })();
+  </script>
+</body>
+</html>
