@@ -67,11 +67,9 @@
   </section>
 
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    const settingsKey = 'sdSettings';
-    let deck = [];
-      let settings = { voice: null, rate: 1, repetitions: 1, batchSize: 5 };
-    let studyIndex = 0;
+
 
     function saveSettings() {
       localStorage.setItem(settingsKey, JSON.stringify(settings));
@@ -126,7 +124,26 @@
       progress.textContent = `Completed ${Math.min(studyIndex, deck.length)}/${deck.length}`;
     }
 
-
+    function parseCSV(text) {
+      deck = [];
+      studyIndex = 0;
+      const result = Papa.parse(text, { skipEmptyLines: true });
+      result.data.forEach((row, idx) => {
+        if (!row || row.length < 3) return;
+        if (idx === 0 && row[0] && row[0].charCodeAt(0) === 0xFEFF) {
+          row[0] = row[0].slice(1);
+        }
+        const [word, sentence, translation] = row;
+        deck.push({
+          word: (word || '').trim(),
+          text: (sentence || '').trim(),
+          translation: (translation || '').trim()
+        });
+      });
+      if (deck.length) {
+        document.getElementById('drill-section').hidden = false;
+        updateProgress();
+      }
     }
 
     function importFile(file) {
@@ -160,10 +177,11 @@
       let idx = 0;
       function next() {
         if (idx >= subset.length) {
-          studyIndex += subset.length;
-          updateProgress();
-          celebrate();
-          return;
+            studyIndex += subset.length;
+            saveStudyIndex();
+            updateProgress();
+            celebrate();
+            return;
         }
         const item = subset[idx];
         document.getElementById('word').textContent = item.word;
@@ -214,6 +232,7 @@
     window.addEventListener('load', () => {
       loadSettings();
       populateVoices();
+      loadStudyIndex();
     });
   </script>
 </body>

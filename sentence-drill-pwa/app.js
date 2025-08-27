@@ -1,7 +1,17 @@
 const settingsKey = 'sdSettings';
+const studyIndexKey = 'sdStudyIndex';
 let deck = [];
 let settings = { voice: null, rate: 1, repetitions: 1, batchSize: 5 };
 let studyIndex = 0;
+
+function saveStudyIndex() {
+  localStorage.setItem(studyIndexKey, studyIndex);
+}
+
+function loadStudyIndex() {
+  const idx = parseInt(localStorage.getItem(studyIndexKey), 10);
+  studyIndex = isNaN(idx) ? 0 : idx;
+}
 
 
 function saveSettings() {
@@ -60,11 +70,16 @@ function updateProgress() {
 
 function parseCSV(text) {
   deck = [];
-  studyIndex = 0;
+  loadStudyIndex();
   const lines = text.split(/\r?\n/);
-  lines.forEach((line, idx) => {
+  lines.forEach(line => {
     if (!line.trim()) return;
-
+    const parts = line.split(',');
+    if (parts.length >= 3) {
+      const [word, sentence, translation] = parts;
+      deck.push({ word, text: sentence, translation });
+    }
+  });
   document.getElementById('drill-section').hidden = false;
   updateProgress();
 }
@@ -102,6 +117,7 @@ function startStudy() {
   function next() {
     if (idx >= subset.length) {
       studyIndex += subset.length;
+      saveStudyIndex();
       updateProgress();
       celebrate();
       return;
@@ -160,4 +176,5 @@ if ('serviceWorker' in navigator) {
 window.addEventListener('load', () => {
   loadSettings();
   populateVoices();
+  loadStudyIndex();
 });
