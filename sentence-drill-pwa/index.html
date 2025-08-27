@@ -17,7 +17,14 @@
       <button id="fetchCsv">Fetch CSV</button>
     </section>
 
-
+    <section id="settings-section">
+      <h2>Settings</h2>
+      <label for="voiceSelect">Voice:</label>
+      <select id="voiceSelect"></select>
+      <label for="rate">Rate:</label>
+      <input type="number" id="rate" value="1" min="0.5" max="2" step="0.1" />
+      <label for="repetitions">Repetitions:</label>
+      <input type="number" id="repetitions" value="1" min="1" />
     </section>
 
     <section id="drill-section" hidden>
@@ -28,4 +35,7 @@
       <button id="studyBtn">Study</button>
       <p id="message" class="message" hidden></p>
     </section>
-
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>
