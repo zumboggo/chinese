@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Parallel Text Reader (Single File)</title>
+<title>Parallel Text Reader (Synced Highlight)</title>
 <style>
   :root {
     --bg: linear-gradient(to bottom, #87CEEB, #E0F7FF);
@@ -13,6 +13,8 @@
     --muted: #6b7280;
     --shadow: 0 6px 18px rgba(0,0,0,0.08);
     --radius: 14px;
+    --read: #0f766e;   /* teal-ish for "read" */
+    --unread: #94a3b8; /* slate-ish for "unread" */
   }
   * { box-sizing: border-box; }
   body {
@@ -28,7 +30,7 @@
     font-weight: 700; letter-spacing: 0.2px;
   }
   .wrap {
-    max-width: 800px; margin: 0.8rem auto; display: grid; gap: 0.9rem;
+    max-width: 900px; margin: 0.8rem auto; display: grid; gap: 0.9rem;
   }
   .card {
     background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
@@ -51,26 +53,47 @@
   button:active { transform: translateY(1px); }
   .help { font-size: 0.85rem; color: var(--muted); }
   .stack { display: grid; gap: 0.5rem; }
-  .reader {
-    display: grid; gap: 0.75rem;
-  }
+  .reader { display: grid; gap: 0.75rem; }
   .pane {
     background: #fff; border-radius: 12px; padding: 0.9rem;
     overflow-y: auto; box-shadow: inset 0 0 0 1px #f1f5f9;
-    white-space: pre-wrap; line-height: 1.6; font-size: 1.25rem;
+    line-height: 1.8; font-size: 1.75rem; /* larger by default */
   }
-  /* Taller pane for English with scrolling */
   #englishDisplay { max-height: 70vh; }
   .toolbar {
     display: grid; gap: 0.5rem;
   }
   @media (min-width: 560px){
-    .toolbar { grid-template-columns: 1fr auto auto; align-items: end; }
+    .toolbar { grid-template-columns: 1fr auto auto auto; align-items: end; }
   }
   .pill {
     display: inline-flex; align-items: center; gap: 0.5rem;
     padding: 0.5rem 0.65rem; border-radius: 999px; background: #f3f4f6; color: #374151;
     font-size: 0.85rem;
+  }
+  /* word highlighting */
+  .w {
+    transition: color 260ms linear, background-color 260ms linear;
+    color: var(--unread);
+    background-image: linear-gradient( to top, rgba(15,118,110,0.10), rgba(15,118,110,0.00) );
+    background-size: 0% 100%;
+    background-repeat: no-repeat;
+    border-radius: 6px;
+    padding: 0 2px;
+  }
+  .w.read {
+    color: var(--read);
+    background-size: 100% 100%;
+  }
+  .controls-grid {
+    display: grid;
+    gap: 0.6rem;
+  }
+  @media (min-width: 560px){
+    .controls-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+  }
+  .inline {
+    display: inline-flex; gap: 0.5rem; align-items: center; font-size: 0.95rem;
   }
 </style>
 </head>
@@ -113,13 +136,24 @@
         <div class="pill" id="nowReading">Now reading: —</div>
         <button id="playZH" class="ghost">Play Chinese</button>
         <button id="stopAll" class="ghost">Stop Audio</button>
+        <button id="resetHL" class="ghost">Reset Highlight</button>
       </div>
+
+      <div class="controls-grid">
+        <label class="inline"><input type="checkbox" id="autoHighlight" checked/> Auto-highlight English</label>
+        <label class="inline"><input type="checkbox" id="followScroll" checked/> Follow reading (auto-scroll)</label>
+        <div class="stack">
+          <label for="fallbackWPM">Fallback highlight speed (WPM)</label>
+          <input type="range" id="fallbackWPM" min="60" max="280" step="5" value="180"/>
+        </div>
+        <div class="stack">
+          <label for="scrollSpeed">Manual Scroll (when not following)</label>
+          <input type="range" id="scrollSpeed" min="0" max="10" value="0" />
+        </div>
+      </div>
+
       <div class="reader">
         <div class="pane" id="englishDisplay" aria-label="English text"></div>
-      </div>
-      <div class="stack">
-        <label for="scrollSpeed">Scroll Speed</label>
-        <input type="range" id="scrollSpeed" min="0" max="10" value="0" />
       </div>
     </section>
 
@@ -135,47 +169,42 @@ const nowReading = document.getElementById('nowReading');
 
 const englishDisplay = document.getElementById('englishDisplay');
 let currentChinese = '';
+let currentEnglish = '';
+let englishWordSpans = []; // <span> nodes, each word
+let totalWords = 0;
 
 const csvInput = document.getElementById('csvInput');
 const clearAllBtn = document.getElementById('clearAll');
 const playZHBtn = document.getElementById('playZH');
 const stopAllBtn = document.getElementById('stopAll');
+const resetHLBtn = document.getElementById('resetHL');
 const scrollSpeed = document.getElementById('scrollSpeed');
+const autoHighlight = document.getElementById('autoHighlight');
+const followScroll = document.getElementById('followScroll');
+const fallbackWPM = document.getElementById('fallbackWPM');
 
-let scrollInterval = null;
+let manualScrollInterval = null;
 
 /* ========= CSV Parsing (handles quotes) ========= */
 function parseCSV(text) {
   const rows = [];
   let i = 0, field = '', row = [], inQuotes = false;
-
-  // Normalize newlines
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   while (i < text.length) {
     const char = text[i];
-
     if (inQuotes) {
       if (char === '"') {
-        // Possible end of quoted field or escaped quote
         if (text[i+1] === '"') { field += '"'; i += 2; continue; }
         inQuotes = false; i++; continue;
-      } else {
-        field += char; i++; continue;
-      }
+      } else { field += char; i++; continue; }
     } else {
-      if (char === '"') {
-        inQuotes = true; i++; continue;
-      } else if (char === ',') {
-        row.push(field); field=''; i++; continue;
-      } else if (char === '\n') {
-        row.push(field); field=''; rows.push(row); row=[]; i++; continue;
-      } else {
-        field += char; i++; continue;
-      }
+      if (char === '"') { inQuotes = true; i++; continue; }
+      else if (char === ',') { row.push(field); field=''; i++; continue; }
+      else if (char === '\n') { row.push(field); field=''; rows.push(row); row=[]; i++; continue; }
+      else { field += char; i++; continue; }
     }
   }
-  // last field/row
   row.push(field);
   rows.push(row);
   return rows;
@@ -190,34 +219,24 @@ csvInput.addEventListener('change', async (e) => {
   const text = await file.text();
   const rows = parseCSV(text);
 
-  // Turn each row into a story: [0]=Chinese, [1]=English, [2]=Title
   const stories = [];
   for (let idx=0; idx<rows.length; idx++){
     const r = rows[idx];
     if (!r || r.length < 3) continue;
-
-    // strip BOM from first cell if present
-    if (idx===0 && r[0] && r[0].charCodeAt(0) === 0xFEFF) {
-      r[0] = r[0].slice(1);
-    }
-
+    if (idx===0 && r[0] && r[0].charCodeAt(0) === 0xFEFF) r[0] = r[0].slice(1);
     const chinese = (r[0] ?? '').trim();
     const english = (r[1] ?? '').trim();
     const title = ((r[2] ?? '').trim()) || `Story ${idx+1}`;
-
-    // skip completely empty rows
     if (!chinese && !english && !title) continue;
-
     stories.push({ title, english, chinese });
   }
 
   datasets.set(fileName, { fileName, stories });
   updateFileSelector();
-  // Auto-select the newly added file
   fileSelector.value = fileName;
   populateStorySelector();
   updateStatus();
-  csvInput.value = ''; // reset input
+  csvInput.value = '';
 });
 
 function updateFileSelector(){
@@ -255,7 +274,6 @@ function populateStorySelector(){
     return;
   }
   storySelector.disabled = false;
-  // Only show titles
   ds.stories.forEach((s, i) => {
     const opt = document.createElement('option');
     opt.value = i.toString();
@@ -264,15 +282,15 @@ function populateStorySelector(){
   });
 }
 
-  storySelector.addEventListener('change', () => {
-    const key = fileSelector.value;
-    const ds = datasets.get(key);
-    const idx = parseInt(storySelector.value, 10);
-    if (!ds || Number.isNaN(idx)) return;
-    const story = ds.stories[idx];
-    displayStory(story, `${ds.fileName} • ${story.title}`);
-    updateStatus();
-  });
+storySelector.addEventListener('change', () => {
+  const key = fileSelector.value;
+  const ds = datasets.get(key);
+  const idx = parseInt(storySelector.value, 10);
+  if (!ds || Number.isNaN(idx)) return;
+  const story = ds.stories[idx];
+  displayStory(story, `${ds.fileName} • ${story.title}`);
+  updateStatus();
+});
 
 clearAllBtn.addEventListener('click', () => {
   datasets.clear();
@@ -280,109 +298,48 @@ clearAllBtn.addEventListener('click', () => {
   updateStatus();
   englishDisplay.textContent = '';
   currentChinese = '';
+  currentEnglish = '';
+  englishWordSpans = [];
+  totalWords = 0;
   nowReading.textContent = 'Now reading: —';
   stopSpeaking();
-  if (scrollInterval) {
-    clearInterval(scrollInterval);
-    scrollInterval = null;
-  }
+  stopManualScroll();
   scrollSpeed.value = 0;
 });
 
+/* ========= Manual Scroll (when not following) ========= */
 scrollSpeed.addEventListener('input', () => {
-  if (scrollInterval) {
-    clearInterval(scrollInterval);
-    scrollInterval = null;
-  }
+  if (followScroll.checked) return; // manual only when not following
+  startManualScroll();
+});
+function startManualScroll(){
+  stopManualScroll();
   const speed = parseInt(scrollSpeed.value, 10);
   if (speed > 0) {
     const delay = 1000 / (speed * 1.4);
-    scrollInterval = setInterval(() => {
+    manualScrollInterval = setInterval(() => {
       englishDisplay.scrollTop += 1;
     }, delay);
   }
-});
+}
+function stopManualScroll(){
+  if (manualScrollInterval) {
+    clearInterval(manualScrollInterval);
+    manualScrollInterval = null;
+  }
+}
 
-  /* ========= Display ========= */
-  function displayStory(story, label){
-    englishDisplay.textContent = story.english || '';
-    currentChinese = story.chinese || '';
-    nowReading.textContent = `Now reading: ${label || (story.title ?? '—')}`;
-  // scroll to top each time
+/* ========= Display & Highlight Prep ========= */
+function displayStory(story, label){
+  currentChinese = story.chinese || '';
+  currentEnglish = story.english || '';
+  nowReading.textContent = `Now reading: ${label || (story.title ?? '—')}`;
+  renderEnglishWithSpans(currentEnglish);
   englishDisplay.scrollTop = 0;
 }
 
-/* ========= TTS ========= */
-let voices = [];
-let zhVoice = null;
-
-function loadVoices(){
-  return new Promise(resolve => {
-    const handler = () => {
-      voices = speechSynthesis.getVoices();
-      zhVoice = pickVoice(['zh-CN','zh-TW','zh']);
-      resolve();
-    };
-    speechSynthesis.onvoiceschanged = handler;
-    // in some browsers voices are ready immediately
-    handler();
-    // fallback timeout
-    setTimeout(handler, 400);
-  });
-}
-
-function pickVoice(preferredLangs){
-  const v = speechSynthesis.getVoices();
-  // best match by startsWith
-  for (const lang of preferredLangs){
-    const match = v.find(x => (x.lang || '').toLowerCase().startsWith(lang.toLowerCase()));
-    if (match) return match;
-  }
-  // fallback to any Chinese voice
-  return v.find(x => (x.lang || '').toLowerCase().startsWith('zh')) || null;
-}
-
-function speak(text, lang, voice){
-  if (!('speechSynthesis' in window) || !text) return null;
-  const u = new SpeechSynthesisUtterance(text);
-  if (voice) u.voice = voice;
-  u.lang = lang;
-  speechSynthesis.speak(u);
-  return u;
-}
-
-function stopSpeaking(){
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-}
-
-async function speakChinese(chinese){
-  if (!('speechSynthesis' in window)) return;
-  stopSpeaking();
-  await loadVoices();
-
-  return new Promise(resolve => {
-    const zhUtter = speak(chinese, (zhVoice?.lang || 'zh-CN'), zhVoice);
-    if (!zhUtter) return resolve();
-    zhUtter.onend = () => resolve();
-  });
-}
-playZHBtn.addEventListener('click', async () => {
-  await speakChinese(currentChinese);
-});
-stopAllBtn.addEventListener('click', stopSpeaking);
-
-/* ========= Status ========= */
-function updateStatus(){
-  let fileCount = datasets.size;
-  let storyCount = 0;
-  for (const ds of datasets.values()) storyCount += (ds.stories?.length || 0);
-  statusPill.textContent = `${fileCount} file${fileCount!==1?'s':''} • ${storyCount} stor${storyCount===1?'y':'ies'}`;
-}
-
-/* ========= Init ========= */
-updateFileSelector();
-updateStatus();
-</script>
-</body>
-</html>
+function renderEnglishWithSpans(text){
+  // Split text into tokens while preserving whitespace & punctuation as separate tokens
+  // We'll only "highlight" tokens classified as words; others pass through.
+  const tokens = tokenizeEnglish(text);
+  c
