@@ -3,343 +3,255 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Parallel Text Reader (Synced Highlight)</title>
+<title>Parallel Text Reader v3.2</title>
 <style>
-  :root {
-    --bg: linear-gradient(to bottom, #87CEEB, #E0F7FF);
-    --card: #ffffff;
-    --primary: #1d4ed8;
-    --text: #111827;
-    --muted: #6b7280;
-    --shadow: 0 6px 18px rgba(0,0,0,0.08);
-    --radius: 14px;
-    --read: #0f766e;   /* teal-ish for "read" */
-    --unread: #94a3b8; /* slate-ish for "unread" */
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 0.75rem;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg); color: var(--text);
-  }
-  header {
-    background: linear-gradient(135deg, var(--primary), #3b82f6);
-    color: #fff; text-align: center;
-    padding: 0.8rem 1rem; border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    font-weight: 700; letter-spacing: 0.2px;
-  }
-  .wrap {
-    max-width: 900px; margin: 0.8rem auto; display: grid; gap: 0.9rem;
-  }
-  .card {
-    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
-    padding: 0.9rem;
-  }
-  .row { display: grid; gap: 0.6rem; }
-  @media (min-width: 560px){
-    .row-cols { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-  }
-  label { font-size: 0.9rem; color: var(--muted); }
-  input[type="text"], select, button {
-    width: 100%; font-size: 1rem; padding: 0.7rem 0.8rem;
-    border: 1px solid #e5e7eb; border-radius: 12px; background: #fff;
-  }
-  input[type="file"]{ font-size: 0.95rem; }
-  button.primary {
-    background: var(--primary); color: #fff; border: none; font-weight: 600;
-  }
-  button.ghost { background: #fff; border: 1px solid #e5e7eb; color: #111827; }
-  button:active { transform: translateY(1px); }
-  .help { font-size: 0.85rem; color: var(--muted); }
-  .stack { display: grid; gap: 0.5rem; }
-  .reader { display: grid; gap: 0.75rem; }
-  .pane {
-    background: #fff; border-radius: 12px; padding: 0.9rem;
-    overflow-y: auto; box-shadow: inset 0 0 0 1px #f1f5f9;
-    line-height: 1.8; font-size: 1.75rem; /* larger by default */
-  }
-  #englishDisplay { max-height: 70vh; }
-  .toolbar {
-    display: grid; gap: 0.5rem;
-  }
-  @media (min-width: 560px){
-    .toolbar { grid-template-columns: 1fr auto auto auto; align-items: end; }
-  }
-  .pill {
-    display: inline-flex; align-items: center; gap: 0.5rem;
-    padding: 0.5rem 0.65rem; border-radius: 999px; background: #f3f4f6; color: #374151;
-    font-size: 0.85rem;
-  }
-  /* word highlighting */
-  .w {
-    transition: color 260ms linear, background-color 260ms linear;
-    color: var(--unread);
-    background-image: linear-gradient( to top, rgba(15,118,110,0.10), rgba(15,118,110,0.00) );
-    background-size: 0% 100%;
-    background-repeat: no-repeat;
-    border-radius: 6px;
-    padding: 0 2px;
-  }
-  .w.read {
-    color: var(--read);
-    background-size: 100% 100%;
-  }
-  .controls-grid {
-    display: grid;
-    gap: 0.6rem;
-  }
-  @media (min-width: 560px){
-    .controls-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
-  }
-  .inline {
-    display: inline-flex; gap: 0.5rem; align-items: center; font-size: 0.95rem;
-  }
+  body{font-family:system-ui,sans-serif;margin:0;padding:1rem;background:#f0f9ff}
+  header{background:#2563eb;color:#fff;padding:.8rem;text-align:center;border-radius:10px;font-weight:600}
+  .wrap{max-width:960px;margin:1rem auto;display:grid;gap:1rem}
+  .card{background:#fff;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,.1);padding:1rem}
+  label{font-size:.9rem;color:#374151}
+  input,select,button{font-size:1rem}
+  .pane{background:#fff;border:1px solid #e5e7eb;border-radius:10px;min-height:200px;max-height:70vh;overflow-y:auto;line-height:1.8;font-size:1.5rem;padding:1rem}
+  .w{color:#6b7280;cursor:pointer;transition:color .15s linear,background-color .15s linear;border-radius:4px;padding:0 2px}
+  .w.read{color:#064e3b;font-weight:800;background:rgba(16,185,129,.14)}
+  .progress{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden;cursor:pointer}
+  .progress>div{height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#22c55e)}
 </style>
 </head>
 <body>
-  <header>📖 Parallel Text Reader</header>
-  <div class="wrap">
+<header>$1</header>
+<div class="wrap">
+  <section class="card">
+    <label for="csvInput">Add CSV</label>
+    <input id="csvInput" type="file" accept=".csv" multiple />
+    <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+      <select id="fileSelector"><option>— No CSV loaded —</option></select>
+      <select id="storySelector"><option>— No story —</option></select>
+      <button id="clearAll">Clear All</button>
+      <span id="statusPill">0 files • 0 stories</span>
+    </div>
+  </section>
 
-    <!-- CSV Loader & Two-Level Selection -->
-    <section class="card row">
-      <div class="row row-cols">
-        <div class="stack">
-          <label for="csvInput">Add CSV (Col1=Chinese, Col2=English, Col3=Title)</label>
-          <input id="csvInput" type="file" accept=".csv" />
-          <div class="help">You can add multiple CSVs. Each row becomes a story. Only the Title (col 3) shows in the story list.</div>
-        </div>
-        <div class="stack">
-          <label>CSV Files</label>
-          <select id="fileSelector" disabled>
-            <option value="">— No CSV loaded —</option>
-          </select>
-        </div>
-      </div>
-      <div class="row">
-        <div class="stack">
-          <label>Stories in Selected CSV (by Title)</label>
-          <select id="storySelector" disabled>
-            <option value="">— Select a CSV first —</option>
-          </select>
-        </div>
-      </div>
-      <div class="row row-cols">
-        <button id="clearAll" class="ghost">Clear All CSVs</button>
-        <span class="pill" id="statusPill">0 files • 0 stories</span>
-      </div>
-    </section>
-
-    <!-- Reader panes & audio controls -->
-    <section class="card row">
-      <div class="toolbar">
-        <div class="pill" id="nowReading">Now reading: —</div>
-        <button id="playZH" class="ghost">Play Chinese</button>
-        <button id="stopAll" class="ghost">Stop Audio</button>
-        <button id="resetHL" class="ghost">Reset Highlight</button>
-      </div>
-
-      <div class="controls-grid">
-        <label class="inline"><input type="checkbox" id="autoHighlight" checked/> Auto-highlight English</label>
-        <label class="inline"><input type="checkbox" id="followScroll" checked/> Follow reading (auto-scroll)</label>
-        <div class="stack">
-          <label for="fallbackWPM">Fallback highlight speed (WPM)</label>
-          <input type="range" id="fallbackWPM" min="60" max="280" step="5" value="180"/>
-        </div>
-        <div class="stack">
-          <label for="scrollSpeed">Manual Scroll (when not following)</label>
-          <input type="range" id="scrollSpeed" min="0" max="10" value="0" />
-        </div>
-      </div>
-
-      <div class="reader">
-        <div class="pane" id="englishDisplay" aria-label="English text"></div>
-      </div>
-    </section>
-
-  </div>
-
+  <section class="card">
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+      <button id="playPause">Play Chinese</button>
+      <button id="stopAll">Stop</button>
+      <button id="resetHL">Reset</button>
+    </div>
+    <label>Highlight speed (WPM):
+      <span id="wpmValue">120</span>
+      <button id="wpmMinus">−</button>
+      <input type="range" id="fallbackWPM" min="60" max="320" step="5" value="120" />
+      <button id="wpmPlus">+</button>
+    </label>
+    <label>Font Size <input type="range" id="fontSize" min="16" max="72" value="28"/></label>
+    <label><input type="checkbox" id="fitWidth"/> Fit text width</label>
+    <label>Start from sentence <select id="startSentence"></select></label>
+    <label><input type="checkbox" id="rememberPos"/> Remember position</label>
+    <div style="margin:.4rem 0"><span id="modePill" style="display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:999px;padding:.25rem .5rem;font-size:.85rem">Sync: —</span></div>
+    <div class="progress"><div id="progressFill"></div></div>
+    <div class="pane" id="englishDisplay"></div>
+  </section>
+</div>
 <script>
-/* ========= Data Structures ========= */
-const datasets = new Map(); // key: fileName, value: {fileName, stories: [{title, english, chinese}]}
-const fileSelector = document.getElementById('fileSelector');
-const storySelector = document.getElementById('storySelector');
-const statusPill = document.getElementById('statusPill');
-const nowReading = document.getElementById('nowReading');
+const csvInput=document.getElementById('csvInput');
+const fileSelector=document.getElementById('fileSelector');
+const storySelector=document.getElementById('storySelector');
+const statusPill=document.getElementById('statusPill');
+const englishDisplay=document.getElementById('englishDisplay');
+const fallbackWPM=document.getElementById('fallbackWPM');
+const fontSize=document.getElementById('fontSize');
+const fitWidth=document.getElementById('fitWidth');
+const startSentence=document.getElementById('startSentence');
+const rememberPos=document.getElementById('rememberPos');
+const progressFill=document.getElementById('progressFill');
+const wpmValue=document.getElementById('wpmValue');
+const wpmMinus=document.getElementById('wpmMinus');
+const wpmPlus=document.getElementById('wpmPlus');
+const playPause=document.getElementById('playPause');
+const stopAll=document.getElementById('stopAll');
+const resetHL=document.getElementById('resetHL');
+const modePill=document.getElementById('modePill');
 
-const englishDisplay = document.getElementById('englishDisplay');
-let currentChinese = '';
-let currentEnglish = '';
-let englishWordSpans = []; // <span> nodes, each word
-let totalWords = 0;
+let datasets=new Map(); let englishWordSpans=[]; let totalWords=0; let lastWordIndex=-1; let englishSentences=[]; let currentSentenceIdx=0; let currentChinese=''; let currentUtterance=null; let voices=[]; let zhVoice=null; let boundarySupported=false; let hlRAF=null;
 
-const csvInput = document.getElementById('csvInput');
-const clearAllBtn = document.getElementById('clearAll');
-const playZHBtn = document.getElementById('playZH');
-const stopAllBtn = document.getElementById('stopAll');
-const resetHLBtn = document.getElementById('resetHL');
-const scrollSpeed = document.getElementById('scrollSpeed');
-const autoHighlight = document.getElementById('autoHighlight');
-const followScroll = document.getElementById('followScroll');
-const fallbackWPM = document.getElementById('fallbackWPM');
-
-let manualScrollInterval = null;
-
-/* ========= CSV Parsing (handles quotes) ========= */
-function parseCSV(text) {
-  const rows = [];
-  let i = 0, field = '', row = [], inQuotes = false;
-  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  while (i < text.length) {
-    const char = text[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i+1] === '"') { field += '"'; i += 2; continue; }
-        inQuotes = false; i++; continue;
-      } else { field += char; i++; continue; }
-    } else {
-      if (char === '"') { inQuotes = true; i++; continue; }
-      else if (char === ',') { row.push(field); field=''; i++; continue; }
-      else if (char === '\n') { row.push(field); field=''; rows.push(row); row=[]; i++; continue; }
-      else { field += char; i++; continue; }
-    }
+function parseCSV(text){
+  const rows=[]; let i=0,field='',row=[],inQuotes=false;
+  text=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  while(i<text.length){
+    const char=text[i];
+    if(inQuotes){ if(char==='"'){ if(text[i+1]==='"'){field+='"'; i+=2; continue;} inQuotes=false; i++; continue;} else {field+=char; i++; continue;} }
+    else { if(char==='"'){inQuotes=true; i++; continue;} else if(char===','){row.push(field); field=''; i++; continue;} else if(char==='\n'){row.push(field); field=''; rows.push(row); row=[]; i++; continue;} else {field+=char; i++; continue;} }
   }
-  row.push(field);
-  rows.push(row);
-  return rows;
+  row.push(field); rows.push(row); return rows;
 }
 
-/* ========= File Handling ========= */
-csvInput.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  const fileName = file.name;
-  const text = await file.text();
-  const rows = parseCSV(text);
-
-  const stories = [];
-  for (let idx=0; idx<rows.length; idx++){
-    const r = rows[idx];
-    if (!r || r.length < 3) continue;
-    if (idx===0 && r[0] && r[0].charCodeAt(0) === 0xFEFF) r[0] = r[0].slice(1);
-    const chinese = (r[0] ?? '').trim();
-    const english = (r[1] ?? '').trim();
-    const title = ((r[2] ?? '').trim()) || `Story ${idx+1}`;
-    if (!chinese && !english && !title) continue;
-    stories.push({ title, english, chinese });
+csvInput.addEventListener('change',async e=>{
+  for(const file of e.target.files){
+    const text=await file.text();
+    const rows=parseCSV(text);
+    const stories=[];
+    rows.forEach((r,idx)=>{
+      if(r.length>=3){
+        const chinese=(r[0]||'').trim();
+        const english=(r[1]||'').trim();
+        const title=(r[2]||`Story ${idx+1}`).trim();
+        if(chinese||english) stories.push({title,english,chinese});
+      }
+    });
+    datasets.set(file.name,{fileName:file.name,stories});
   }
-
-  datasets.set(fileName, { fileName, stories });
-  updateFileSelector();
-  fileSelector.value = fileName;
-  populateStorySelector();
-  updateStatus();
-  csvInput.value = '';
+  updateSelectors();
 });
 
-function updateFileSelector(){
-  const prevValue = fileSelector.value;
-  fileSelector.innerHTML = '';
-  if (datasets.size === 0) {
-    fileSelector.disabled = true;
-    fileSelector.innerHTML = '<option value="">— No CSV loaded —</option>';
-    storySelector.disabled = true;
-    storySelector.innerHTML = '<option value="">— Select a CSV first —</option>';
-    return;
-  }
-  fileSelector.disabled = false;
-  for (const key of datasets.keys()) {
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = key;
-    fileSelector.appendChild(opt);
-  }
-  if (datasets.has(prevValue)) fileSelector.value = prevValue;
+function updateSelectors(){
+  fileSelector.innerHTML=''; storySelector.innerHTML='';
+  if(datasets.size===0){fileSelector.innerHTML='<option>— No CSV loaded —</option>'; storySelector.innerHTML='<option>— No story —</option>'; statusPill.textContent='0 files • 0 stories'; return;}
+  datasets.forEach((ds,name)=>{fileSelector.appendChild(new Option(name,name));});
+  fileSelector.value=[...datasets.keys()][0];
+  populateStories();
+  let count=0; datasets.forEach(ds=>count+=ds.stories.length);
+  statusPill.textContent=`${datasets.size} files • ${count} stories`;
 }
 
-fileSelector.addEventListener('change', () => {
-  populateStorySelector();
-  updateStatus();
+fileSelector.addEventListener('change',populateStories);
+function populateStories(){
+  const ds=datasets.get(fileSelector.value); storySelector.innerHTML='';
+  if(!ds){storySelector.innerHTML='<option>— No story —</option>';return;}
+  ds.stories.forEach((s,i)=>storySelector.appendChild(new Option(s.title,i)));
+  if(ds.stories.length){storySelector.value=0; loadStory(ds.stories[0]);}
+}
+
+storySelector.addEventListener('change',()=>{
+  const ds=datasets.get(fileSelector.value); if(!ds) return;
+  const story=ds.stories[+storySelector.value]; if(story) loadStory(story);
 });
 
-function populateStorySelector(){
-  const key = fileSelector.value;
-  const ds = datasets.get(key);
-  storySelector.innerHTML = '';
-  if (!ds || !ds.stories?.length) {
-    storySelector.disabled = true;
-    storySelector.innerHTML = '<option value="">— No stories in this CSV —</option>';
-    return;
-  }
-  storySelector.disabled = false;
-  ds.stories.forEach((s, i) => {
-    const opt = document.createElement('option');
-    opt.value = i.toString();
-    opt.textContent = s.title || `Story ${i+1}`;
-    storySelector.appendChild(opt);
-  });
-}
-
-storySelector.addEventListener('change', () => {
-  const key = fileSelector.value;
-  const ds = datasets.get(key);
-  const idx = parseInt(storySelector.value, 10);
-  if (!ds || Number.isNaN(idx)) return;
-  const story = ds.stories[idx];
-  displayStory(story, `${ds.fileName} • ${story.title}`);
-  updateStatus();
-});
-
-clearAllBtn.addEventListener('click', () => {
-  datasets.clear();
-  updateFileSelector();
-  updateStatus();
-  englishDisplay.textContent = '';
-  currentChinese = '';
-  currentEnglish = '';
-  englishWordSpans = [];
-  totalWords = 0;
-  nowReading.textContent = 'Now reading: —';
-  stopSpeaking();
-  stopManualScroll();
-  scrollSpeed.value = 0;
-});
-
-/* ========= Manual Scroll (when not following) ========= */
-scrollSpeed.addEventListener('input', () => {
-  if (followScroll.checked) return; // manual only when not following
-  startManualScroll();
-});
-function startManualScroll(){
-  stopManualScroll();
-  const speed = parseInt(scrollSpeed.value, 10);
-  if (speed > 0) {
-    const delay = 1000 / (speed * 1.4);
-    manualScrollInterval = setInterval(() => {
-      englishDisplay.scrollTop += 1;
-    }, delay);
-  }
-}
-function stopManualScroll(){
-  if (manualScrollInterval) {
-    clearInterval(manualScrollInterval);
-    manualScrollInterval = null;
-  }
-}
-
-/* ========= Display & Highlight Prep ========= */
-function displayStory(story, label){
-  currentChinese = story.chinese || '';
-  currentEnglish = story.english || '';
-  nowReading.textContent = `Now reading: ${label || (story.title ?? '—')}`;
-  renderEnglishWithSpans(currentEnglish);
-  englishDisplay.scrollTop = 0;
-}
+function loadStory(story){ currentChinese = story.chinese || ''; renderEnglishWithSpans(story.english||''); segmentSentences(story.english||''); populateStartSentences(); if(rememberPos.checked) restoreBookmark(); }
 
 function renderEnglishWithSpans(text){
-  // Split text into tokens while preserving whitespace & punctuation as separate tokens
-  // We'll only "highlight" tokens classified as words; others pass through.
-  const tokens = tokenizeEnglish(text);
-  c
+  englishWordSpans=[]; totalWords=0; englishDisplay.innerHTML='';
+  const tokens=tokenizeEnglish(text);
+  tokens.forEach(tok=>{ if(tok.type==='word'){ const span=document.createElement('span'); span.className='w'; span.textContent=tok.value+' '; span.dataset.wi=totalWords; span.onclick=()=>syncToWord(+span.dataset.wi); englishWordSpans.push(span); englishDisplay.appendChild(span); totalWords++; } else englishDisplay.appendChild(document.createTextNode(tok.value)); });
+}
+function tokenizeEnglish(text){const re=/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g; const out=[]; let last=0,m; while((m=re.exec(text))!==null){ if(m.index>last) out.push({type:'other',value:text.slice(last,m.index)}); out.push({type:'word',value:m[0]}); last=m.index+m[0].length;} if(last<text.length) out.push({type:'other',value:text.slice(last)}); return out;}
+function segmentSentences(text){ englishSentences=[]; startSentence.innerHTML=''; let cursor=0; const parts=text.split(/(?<=[.?!…])\s+/); parts.forEach((p,i)=>{const words=(p.match(/[A-Za-z0-9]+/g)||[]).length; if(words){englishSentences.push({startWordIdx:cursor,endWordIdx:cursor+words-1}); const preview=(p.replace(/\s+/g,' ').trim()).slice(0,60)||`Sentence ${i+1}`; startSentence.appendChild(new Option(`${i+1}. ${preview}`,i)); cursor+=words;}});}
+function populateStartSentences(){ if(englishSentences.length) startSentence.value=0; }
+
+function updateHighlightToIndex(idx){ const c=Math.max(-1,Math.min(idx,totalWords-1)); if(c===lastWordIndex) return; for(let i=lastWordIndex+1;i<=c;i++){englishWordSpans[i]?.classList.add('read');} lastWordIndex=c; updateProgressBar((c+1)/Math.max(1,totalWords)); }
+function updateProgressBar(r){progressFill.style.width=(r*100)+'%';}
+function syncToWord(idx){resetHighlight(); updateHighlightToIndex(idx);}
+function resetHighlight(){englishWordSpans.forEach(s=>s.classList.remove('read')); lastWordIndex=-1; updateProgressBar(0);}
+
+fontSize.addEventListener('input',()=>{englishDisplay.style.fontSize=fontSize.value+'px';});
+fitWidth.addEventListener('change',()=>{ if(fitWidth.checked) fitToWidth(); });
+function fitToWidth(){ if(!englishWordSpans.length) return; const container=englishDisplay; const maxW=container.clientWidth*0.94; let longest=englishWordSpans[0].textContent||''; englishWordSpans.forEach(s=>{ if((s.textContent||'').length>(longest||'').length) longest=s.textContent; }); let lo=16, hi=96, best=+fontSize.value||28; const probe=document.createElement('span'); probe.style.visibility='hidden'; probe.style.whiteSpace='nowrap'; container.appendChild(probe); while(lo<=hi){ const mid=(lo+hi>>1); probe.style.fontSize=mid+'px'; probe.textContent=longest; const w=probe.offsetWidth; if(w<=maxW){ best=mid; lo=mid+1; } else { hi=mid-1; } } container.removeChild(probe); fontSize.value=best; englishDisplay.style.fontSize=best+'px'; }
+
+startSentence.addEventListener('change',()=>{ const idx=+startSentence.value; if(englishSentences[idx]){ const s=englishSentences[idx]; syncToWord(s.startWordIdx); currentSentenceIdx=idx; if(rememberPos.checked) saveBookmark(); }});
+const BOOK_KEY='ptr_bookmarks_v1';
+function storyKey(){ return (fileSelector.value||'file')+'::'+(storySelector.value||'0'); }
+function saveBookmark(){ const key=storyKey(); const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); map[key] = { s: currentSentenceIdx, wi: lastWordIndex }; localStorage.setItem(BOOK_KEY, JSON.stringify(map)); }
+function restoreBookmark(){ if(!rememberPos.checked) return false; const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); const b = map[storyKey()]; if(!b) return false; if(englishSentences[b.s]){ currentSentenceIdx=b.s; const seg=englishSentences[b.s]; syncToWord(Math.max(0, seg.startWordIdx)); return true; } return false; }
+progressFill.parentElement.addEventListener('click',e=>{const rect=e.currentTarget.getBoundingClientRect(); const ratio=(e.clientX-rect.left)/rect.width; const idx=Math.floor(ratio*totalWords); syncToWord(idx);});
+
+fallbackWPM.addEventListener('input',()=>{wpmValue.textContent=fallbackWPM.value;});
+wpmMinus.onclick=()=>{fallbackWPM.value=Math.max(60,+fallbackWPM.value-5); wpmValue.textContent=fallbackWPM.value;};
+wpmPlus.onclick=()=>{fallbackWPM.value=Math.min(320,+fallbackWPM.value+5); wpmValue.textContent=fallbackWPM.value;};
+
+// TTS: boundary sync + timing fallback
+function stopSpeaking(){ if(!('speechSynthesis' in window)) return; speechSynthesis.cancel(); currentUtterance=null; if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } }
+function loadVoices(){ return new Promise(r=>{ const h=()=>{ voices=speechSynthesis.getVoices(); zhVoice = voices.find(v=> (v.lang||'').toLowerCase().startsWith('zh')) || null; r(); }; speechSynthesis.onvoiceschanged=h; h(); setTimeout(h,300); }); }
+function startTimingFallback(){ const wpm=+fallbackWPM.value||120; const msPerWord=60000/Math.max(1,wpm); const start=performance.now(); function tick(now){ const idx=Math.min(totalWords-1, Math.floor((now-start)/msPerWord)); updateHighlightToIndex(idx); if(idx<totalWords-1) hlRAF=requestAnimationFrame(tick); } hlRAF=requestAnimationFrame(tick); modePill.textContent='Sync: timing'; }
+async function playChinese(){ if(!currentChinese) return; await loadVoices(); stopSpeaking(); resetHighlight(); const u=new SpeechSynthesisUtterance(currentChinese); if(zhVoice) u.voice=zhVoice; u.lang=zhVoice?.lang||'zh-CN'; boundarySupported=false; const totalChars=Math.max(1,currentChinese.length);
+  u.onboundary=(e)=>{ if(typeof e.charIndex==='number'){ if(!boundarySupported) modePill.textContent='Sync: speech-boundary'; boundarySupported=true; const ratio=e.charIndex/totalChars; const idx=Math.min(totalWords-1, Math.floor(ratio*totalWords)); updateHighlightToIndex(idx); } };
+  u.onstart=()=>{ if(!boundarySupported) startTimingFallback(); };
+  u.onend=()=>{ if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } updateHighlightToIndex(totalWords-1); currentUtterance=null; };
+  currentUtterance=u; u.rate = 0.8; speechSynthesis.speak(u);
+}
+playPause.addEventListener('click', ()=>{ if(currentUtterance) stopSpeaking(); else playChinese(); });
+stopAll.addEventListener('click', stopSpeaking);
+resetHL.addEventListener('click', resetHighlight);
+
+// Keyboard shortcuts: Space play/pause, +/- WPM, [ ] prev/next sentence
+document.addEventListener('keydown', (e)=>{
+  const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.key === ' ') { e.preventDefault(); if (currentUtterance) stopSpeaking(); else playChinese(); }
+  else if (e.key === '+' || e.key === '=') { fallbackWPM.value = Math.min(320, +fallbackWPM.value + 5); wpmValue.textContent = fallbackWPM.value; }
+  else if (e.key === '-' || e.key === '_') { fallbackWPM.value = Math.max(60, +fallbackWPM.value - 5); wpmValue.textContent = fallbackWPM.value; }
+  else if (e.key === '[') { const prev = Math.max(0, currentSentenceIdx - 1); if (englishSentences[prev]) { const s = englishSentences[prev]; currentSentenceIdx = prev; syncToWord(s.startWordIdx); } }
+  else if (e.key === ']') { const next = Math.min(englishSentences.length - 1, currentSentenceIdx + 1); if (englishSentences[next]) { const s = englishSentences[next]; currentSentenceIdx = next; syncToWord(s.startWordIdx); } }
+});
+
+// init
+wpmValue.textContent=fallbackWPM.value;
+englishDisplay.textContent='Load a CSV to begin.';
+// === Inject Voice Picker UI & Wiring ===
+(function(){
+  try{
+    const grid = document.querySelector('.controls-grid') || document.body;
+    if(!grid) return;
+    // Build UI block only if not already present
+    if (!document.getElementById('voiceSelect')){
+      const stack = document.createElement('div');
+      stack.className = 'stack';
+      stack.innerHTML = `
+        <label for="voiceSelect">Voice</label>
+        <select id="voiceSelect"><option>Loading voices…</option></select>
+        <button id="testVoice" class="ghost" style="margin-top:.25rem">Test voice</button>
+      `;
+      grid.appendChild(stack);
+    }
+    const voiceSelect = document.getElementById('voiceSelect');
+    const testVoice = document.getElementById('testVoice');
+
+    function voiceKey(v){ return (v && (v.voiceURI || v.name)) + '|' + (v?.lang || ''); }
+    function pickSelectedVoice(){ if(!voiceSelect||!window.voices?.length) return null; const key=voiceSelect.value; return window.voices.find(v=> voiceKey(v)===key) || null; }
+    function populateVoiceSelect(){
+      if (!('speechSynthesis' in window)) return;
+      const vs = speechSynthesis.getVoices();
+      if (vs && vs.length) window.voices = vs;
+      if (!voiceSelect) return;
+      const chosen = (localStorage.getItem('ptr_voice_key')||'');
+      voiceSelect.innerHTML = '';
+      const zh = (window.voices||[]).filter(v=> (v.lang||'').toLowerCase().startsWith('zh'));
+      const rest = (window.voices||[]).filter(v=> !(v.lang||'').toLowerCase().startsWith('zh'));
+      const ordered = [...zh, ...rest];
+      ordered.forEach(v=>{
+        const opt = document.createElement('option');
+        opt.value = voiceKey(v);
+        opt.textContent = `${v.name} — ${v.lang}${v.default?' (default)':''}`;
+        voiceSelect.appendChild(opt);
+      });
+      let target = chosen;
+      if (!target && ordered.length){ target = voiceKey(ordered[0]); }
+      if (target) voiceSelect.value = target;
+    }
+    function updateWorkingVoice(){
+      const v = pickSelectedVoice();
+      if (v) { window.zhVoice = v; try{ localStorage.setItem('ptr_voice_key', voiceSelect.value);}catch{} }
+    }
+
+    if ('speechSynthesis' in window){
+      speechSynthesis.addEventListener('voiceschanged', ()=>{ populateVoiceSelect(); updateWorkingVoice(); });
+    }
+    populateVoiceSelect(); updateWorkingVoice();
+
+    if (voiceSelect){ voiceSelect.addEventListener('change', ()=> updateWorkingVoice()); }
+    if (testVoice){
+      testVoice.addEventListener('click', ()=>{
+        if (!('speechSynthesis' in window)) return;
+        if (!window.zhVoice){ updateWorkingVoice(); }
+        if (typeof stopSpeaking === 'function') stopSpeaking();
+        const u = new SpeechSynthesisUtterance('你好！ Hello!');
+        u.lang = (window.zhVoice?.lang || 'zh-CN');
+        if (window.zhVoice) u.voice = window.zhVoice;
+        u.rate = 0.8;
+        speechSynthesis.speak(u);
+      });
+    }
+  }catch(e){ /* no-op */ }
+})();
+</script>
+</body>
+</html>
