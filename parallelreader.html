@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Parallel Text Reader v3.2</title>
+<title>Parallel Text Reader</title>
 <style>
   body{font-family:system-ui,sans-serif;margin:0;padding:1rem;background:#f0f9ff}
   header{background:#2563eb;color:#fff;padding:.8rem;text-align:center;border-radius:10px;font-weight:600}
@@ -19,7 +19,7 @@
 </style>
 </head>
 <body>
-<header>$1</header>
+<header>📖 Parallel Text Reader</header>
 <div class="wrap">
   <section class="card">
     <label for="csvInput">Add CSV</label>
@@ -34,7 +34,8 @@
 
   <section class="card">
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
-      <button id="playPause">Play Chinese</button>
+      $1
+        <button id="pauseResume" class="ghost">Pause</button>
       <button id="stopAll">Stop</button>
       <button id="resetHL">Reset</button>
     </div>
@@ -166,7 +167,7 @@ async function playChinese(){ if(!currentChinese) return; await loadVoices(); st
   u.onboundary=(e)=>{ if(typeof e.charIndex==='number'){ if(!boundarySupported) modePill.textContent='Sync: speech-boundary'; boundarySupported=true; const ratio=e.charIndex/totalChars; const idx=Math.min(totalWords-1, Math.floor(ratio*totalWords)); updateHighlightToIndex(idx); } };
   u.onstart=()=>{ if(!boundarySupported) startTimingFallback(); };
   u.onend=()=>{ if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } updateHighlightToIndex(totalWords-1); currentUtterance=null; };
-  currentUtterance=u; u.rate = 0.8; speechSynthesis.speak(u);
+  currentUtterance=u; u.rate = (window.ttsRate ?? 0.8); speechSynthesis.speak(u);
 }
 playPause.addEventListener('click', ()=>{ if(currentUtterance) stopSpeaking(); else playChinese(); });
 stopAll.addEventListener('click', stopSpeaking);
@@ -246,11 +247,204 @@ englishDisplay.textContent='Load a CSV to begin.';
         const u = new SpeechSynthesisUtterance('你好！ Hello!');
         u.lang = (window.zhVoice?.lang || 'zh-CN');
         if (window.zhVoice) u.voice = window.zhVoice;
-        u.rate = 0.8;
+        u.rate = (window.ttsRate ?? 0.8);
         speechSynthesis.speak(u);
       });
     }
   }catch(e){ /* no-op */ }
+})();
+// === Rate slider (safe inject) ===
+(function(){
+  try{
+    const grid = document.querySelector('.controls-grid') || document.body;
+    if(!grid) return;
+    if (!document.getElementById('rateSlider')){
+      const stack = document.createElement('div');
+      stack.className = 'stack';
+      stack.innerHTML = `
+        <label for="rateSlider">Speech rate (0.5–1.5)
+          <span id="rateValue" class="pill" style="margin-left:.35rem"></span>
+        </label>
+        <input type="range" id="rateSlider" min="0.5" max="1.5" step="0.05" />
+      `;
+      grid.appendChild(stack);
+    }
+    const RATE_KEY='ptr_tts_rate';
+    const slider=document.getElementById('rateSlider');
+    const val=document.getElementById('rateValue');
+    const saved=parseFloat(localStorage.getItem(RATE_KEY));
+    window.ttsRate = (Number.isFinite(saved) && saved>0) ? saved : 0.8;
+    if (slider){
+      slider.value = String(window.ttsRate);
+      if (val) val.textContent = window.ttsRate.toFixed(2) + '×';
+      slider.addEventListener('input', ()=>{
+        const r = parseFloat(slider.value) || 0.8;
+        window.ttsRate = r;
+        if (val) val.textContent = r.toFixed(2) + '×';
+        try{ localStorage.setItem(RATE_KEY, String(r)); }catch{}
+      });
+    }
+  }catch(e){ /* no-op */ }
+})();
+// === Dark mode (safe inject) ===
+(function(){
+  try{
+    const css = `
+      body.dark { --bg: linear-gradient(to bottom, #0b1220, #0f172a); --card:#0f172a; --primary:#60a5fa; --text:#e5e7eb; --muted:#9ca3af; }
+      body.dark .pane{ box-shadow: inset 0 0 0 1px #1f2937; }
+      body.dark .progress{ background:#1f2937; }
+      body.dark .progress>div{ background:linear-gradient(90deg,#60a5fa,#34d399); }
+      body.dark .pill{ background:#111827; color:#e5e7eb; border:1px solid #1f2937; }
+      body.dark .w.read{ background:rgba(16,185,129,.22); color:#a7f3d0; }
+    `;
+    const style=document.createElement('style'); style.textContent=css; document.head.appendChild(style);
+    const grid=document.querySelector('.controls-grid')||document.body;
+    if(grid && !document.getElementById('darkToggle')){
+      const wrap=document.createElement('div'); wrap.className='stack';
+      wrap.innerHTML = `<label class="inline"><input type="checkbox" id="darkToggle"/> Dark mode</label>`;
+      grid.appendChild(wrap);
+    }
+    const key='ptr_dark';
+    const el=document.getElementById('darkToggle');
+    function apply(v){ document.body.classList.toggle('dark', !!v); if(el) el.checked=!!v; }
+    let saved = (localStorage.getItem(key)==='1');
+    apply(saved);
+    if(el){ el.addEventListener('change', ()=>{ saved = el.checked; try{ localStorage.setItem(key, saved?'1':'0'); }catch{} apply(saved); }); }
+  }catch(e){ /* no-op */ }
+})();
+
+// === Time indicator (safe inject) ===
+(function(){
+  try{
+    const bar=document.getElementById('progressBar');
+    if(bar && !document.getElementById('timeInfo')){
+      const t=document.createElement('div'); t.id='timeInfo'; t.className='help'; t.textContent='00:00 / 00:00'; t.style.marginTop='.25rem'; bar.insertAdjacentElement('afterend', t);
+    }
+    const timeEl=document.getElementById('timeInfo');
+    function fmt(ms){ let s=Math.max(0,Math.round(ms/1000)); let m=(s/60)|0; s=s%60; return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
+    function refresh(){
+      try{
+        const wpmEl = document.getElementById('fallbackWPM');
+        const wpm = parseInt(wpmEl?.value||'120',10);
+        const msPerWord = 60000/Math.max(1,wpm);
+        let wordsTotal = window.totalWords||0; let offset=0;
+        if (window.loopSentence && document.getElementById('loopSentence')?.checked && Array.isArray(window.englishSentences) && window.englishSentences[window.currentSentenceIdx]){
+          const seg = window.englishSentences[window.currentSentenceIdx];
+          wordsTotal = Math.max(1, (seg.endWordIdx - seg.startWordIdx + 1));
+          offset = seg.startWordIdx;
+        }
+        const totalMs = wordsTotal * msPerWord;
+        const idx = Math.max(-1, window.lastWordIndex ?? -1);
+        const elapsedWords = Math.max(0, idx - offset + 1);
+        const elapsedMs = Math.min(totalMs, elapsedWords * msPerWord);
+        if (timeEl) timeEl.textContent = `${fmt(elapsedMs)} / ${fmt(totalMs)}`;
+      }catch{ /* no-op */ }
+      requestAnimationFrame(refresh);
+    }
+    requestAnimationFrame(refresh);
+  }catch(e){ /* no-op */ }
+})();
+
+// === Double-click to loop sentence (safe inject) ===
+(function(){
+  try{
+    const root=document.getElementById('englishDisplay');
+    if(!root) return;
+    function sentenceIdxForWord(wi){
+      if(!Array.isArray(window.englishSentences)) return -1;
+      for(let i=0;i<window.englishSentences.length;i++){
+        const s=window.englishSentences[i];
+        if (wi>=s.startWordIdx && wi<=s.endWordIdx) return i;
+      }
+      return -1;
+    }
+    root.addEventListener('dblclick', (e)=>{
+      const t=e.target; if(!t || !t.classList || !t.classList.contains('w')) return;
+      const wi = parseInt(t.dataset.wi||'-1',10); if (Number.isNaN(wi) || wi<0) return;
+      const idx = sentenceIdxForWord(wi); if (idx<0) return;
+      try { if (typeof stopSpeaking==='function') stopSpeaking(); } catch {}
+      const loopCb = document.getElementById('loopSentence'); if(loopCb) loopCb.checked=true;
+      window.currentSentenceIdx = idx;
+      if (typeof window.jumpToSentence==='function') window.jumpToSentence(idx);
+      if (typeof window.loopCurrentSentence==='function') window.loopCurrentSentence();
+      if (document.getElementById('rememberPos')?.checked && typeof window.saveBookmark==='function') window.saveBookmark();
+    });
+  }catch(e){ /* no-op */ }
+})();
+</script>
+<script>
+// Hide deprecated Fit Text Width control if present
+(function(){try{var fw=document.getElementById('fitWidth');if(fw){var blk=fw.closest('.stack')||fw.closest('.inline')||fw.parentElement; if(blk) blk.style.display='none';}}catch(e){}}
+)();
+
+// Pause/Resume + robust timing fallback override
+(function(){
+  try{
+    var btn=document.getElementById('pauseResume');
+    window._fbActive = window._fbActive || false;
+    window._fbStart = window._fbStart || 0;
+    window._fbElapsedMs = window._fbElapsedMs || 0;
+    window._fbTotalMs = window._fbTotalMs || 0;
+    window._fbStartIndex = window._fbStartIndex || 0;
+    window._fbEndIndex = window._fbEndIndex || 0;
+    window.isPaused = window.isPaused || false;
+
+    // Override timing fallback to be pause/resume aware
+    window.startTimingFallback = function(range){
+      var wpmEl = document.getElementById('fallbackWPM');
+      var wpm = parseInt((wpmEl && wpmEl.value) || '120', 10);
+      var start = 0, end = (window.totalWords || 1) - 1;
+      if (range && typeof range.startWordIdx === 'number'){ start = range.startWordIdx; end = range.endWordIdx; }
+      var words = Math.max(1, end - start + 1);
+      var msPerWord = 60000/Math.max(1,wpm);
+      window._fbActive = true;
+      window._fbStartIndex = start;
+      window._fbEndIndex = end;
+      window._fbTotalMs = words * msPerWord;
+      window._fbElapsedMs = 0;
+      window._fbStart = performance.now();
+      function tick(now){
+        if (!window._fbActive) return;
+        var t = window._fbElapsedMs + (now - window._fbStart);
+        var ratio = Math.min(1, t / window._fbTotalMs);
+        var idx = Math.floor(start + ratio * words);
+        if (typeof window.updateHighlightToIndex === 'function') window.updateHighlightToIndex(idx);
+        if (ratio < 1) { window.hlRAF = requestAnimationFrame(tick); }
+        else if (document.getElementById('loopSentence') && document.getElementById('loopSentence').checked) {
+          if (typeof window.loopCurrentSentence === 'function') window.loopCurrentSentence();
+        }
+      }
+      window._fbTick = tick;
+      if (window.hlRAF) cancelAnimationFrame(window.hlRAF);
+      window.hlRAF = requestAnimationFrame(tick);
+      var pill=document.getElementById('modePill'); if (pill) pill.textContent='Sync: timing';
+    };
+
+    // Make loopCurrentSentence use the same driver
+    window.loopCurrentSentence = function(){
+      if (!Array.isArray(window.englishSentences) || !window.englishSentences.length) return;
+      var s = window.englishSentences[window.currentSentenceIdx] || window.englishSentences[0];
+      for (var i=s.startWordIdx;i<=s.endWordIdx;i++){ if (window.englishWordSpans && window.englishWordSpans[i]) window.englishWordSpans[i].classList.remove('read'); }
+      window.lastWordIndex = s.startWordIdx - 1;
+      window._fbActive = false; if (window.hlRAF) cancelAnimationFrame(window.hlRAF);
+      window.startTimingFallback({startWordIdx:s.startWordIdx, endWordIdx:s.endWordIdx});
+    };
+
+    function pausePlayback(){
+      if (window.isPaused) return; window.isPaused = true;
+      if ('speechSynthesis' in window && window.speechSynthesis.speaking && !window.speechSynthesis.paused) { window.speechSynthesis.pause(); }
+      if (window._fbActive && window.hlRAF){ cancelAnimationFrame(window.hlRAF); window.hlRAF=null; window._fbElapsedMs += performance.now() - window._fbStart; }
+      if (btn) btn.textContent='Resume';
+    }
+    function resumePlayback(){
+      if (!window.isPaused) return; window.isPaused = false;
+      if ('speechSynthesis' in window && window.speechSynthesis.paused){ window.speechSynthesis.resume(); }
+      if (window._fbActive){ window._fbStart = performance.now(); if (window._fbTick) window.hlRAF = requestAnimationFrame(window._fbTick); }
+      if (btn) btn.textContent='Pause';
+    }
+    window.pausePlayback=pausePlayback; window.resumePlayback=resumePlayback;
+    if (btn){ btn.addEventListener('click', function(){ if (window.isPaused) resumePlayback(); else pausePlayback(); }); }
+  }catch(e){}
 })();
 </script>
 </body>
