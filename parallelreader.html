@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<style id="azureOverride">:root{--bg: linear-gradient(to bottom, #0b63c7, #007fff);} </style>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Parallel Text Reader</title>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;padding:1rem;background:#f0f9ff}
+  body{font-family:system-ui,sans-serif;margin:0;padding:1rem;background:linear-gradient(to bottom, #0b63c7, #007fff)}
   header{background:#2563eb;color:#fff;padding:.8rem;text-align:center;border-radius:10px;font-weight:600}
   .wrap{max-width:960px;margin:1rem auto;display:grid;gap:1rem}
   .card{background:#fff;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,.1);padding:1rem}
@@ -34,7 +35,7 @@
 
   <section class="card">
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
-      $1
+      <button id="playPause" class="ghost">Play Chinese</button>
         <button id="pauseResume" class="ghost">Pause</button>
       <button id="stopAll">Stop</button>
       <button id="resetHL">Reset</button>
@@ -290,7 +291,7 @@ englishDisplay.textContent='Load a CSV to begin.';
 (function(){
   try{
     const css = `
-      body.dark { --bg: linear-gradient(to bottom, #0b1220, #0f172a); --card:#0f172a; --primary:#60a5fa; --text:#e5e7eb; --muted:#9ca3af; }
+      body.dark { --bg: linear-gradient(to bottom, #0b63c7, #007fff); --card:#0f172a; --primary:#60a5fa; --text:#e5e7eb; --muted:#9ca3af; }
       body.dark .pane{ box-shadow: inset 0 0 0 1px #1f2937; }
       body.dark .progress{ background:#1f2937; }
       body.dark .progress>div{ background:linear-gradient(90deg,#60a5fa,#34d399); }
@@ -444,6 +445,83 @@ englishDisplay.textContent='Load a CSV to begin.';
     }
     window.pausePlayback=pausePlayback; window.resumePlayback=resumePlayback;
     if (btn){ btn.addEventListener('click', function(){ if (window.isPaused) resumePlayback(); else pausePlayback(); }); }
+  }catch(e){}
+})();
+</script>
+<script>
+// Ensure Play button exists and remove stray "$1" text
+(function(){
+  try{
+    var toolbar = document.querySelector('.toolbar');
+    if (!toolbar) return;
+    // remove any stray "$1" text nodes
+    Array.from(toolbar.childNodes).forEach(function(n){
+      if (n.nodeType===3 && /\$1/.test(n.textContent)) { n.textContent=''; }
+    });
+    // add Play button if missing
+    if (!document.getElementById('playPause')){
+      var btn = document.createElement('button');
+      btn.id = 'playPause'; btn.className = 'ghost'; btn.textContent = 'Play';
+      var before = document.getElementById('pauseResume');
+      toolbar.insertBefore(btn, before || null);
+      btn.addEventListener('click', function(){
+        try {
+          if (window.currentUtterance) { if (typeof stopSpeaking==='function') stopSpeaking(); }
+          else { if (typeof playChinese==='function') playChinese(); }
+        } catch(e){}
+      });
+    }
+  }catch(e){ /* no-op */ }
+})();
+</script>
+<script>
+// Remove Fit Text Width control entirely if present
+(function(){
+  try{
+    var fit = document.getElementById('fitWidth');
+    if (fit){
+      var blk = fit.closest('.stack') || fit.closest('label') || fit.parentElement;
+      if (blk) blk.remove();
+    }
+  }catch(e){}
+})();
+
+// Ensure Play button exists; replace any stray "$1"
+(function(){
+  try{
+    var toolbar = document.getElementById('toolbar') || document.querySelector('.toolbar');
+    if (!toolbar) return;
+    Array.from(toolbar.childNodes).forEach(function(n){ if(n.nodeType===3 && /\$1/.test(n.textContent)) n.textContent=''; });
+    if (!document.getElementById('playPause')){
+      var btn=document.createElement('button'); btn.id='playPause'; btn.className='ghost'; btn.textContent='Play Chinese';
+      toolbar.insertBefore(btn, toolbar.firstChild);
+      btn.addEventListener('click', function(){ try{ if(window.currentUtterance){ if(typeof stopSpeaking==='function') stopSpeaking(); } else { if(typeof playChinese==='function') playChinese(); } }catch(e){} });
+    }
+  }catch(e){}
+})();
+
+// Add visible TTS speed slider if missing and wire it up
+(function(){
+  try{
+    if (document.getElementById('rateSlider')) return; // already present
+    var toolbar = document.getElementById('toolbar') || document.querySelector('.toolbar');
+    if (!toolbar) return;
+    var container = toolbar.parentElement;
+    var row = document.createElement('div'); row.className='row'; row.style.marginTop='.5rem';
+    row.innerHTML = '
+      <label>Speech rate (0.5–1.5)
+        <span id="rateValue" class="pill" style="margin-left:.35rem">0.80×</span>
+        <input type="range" id="rateSlider" min="0.5" max="1.5" step="0.05" value="0.8" />
+      </label>
+    ';
+    container.insertBefore(row, container.querySelector('.progress'));
+    var slider = document.getElementById('rateSlider');
+    var valueEl = document.getElementById('rateValue');
+    var saved = parseFloat(localStorage.getItem('ptr_tts_rate'));
+    window.ttsRate = (Number.isFinite(saved) && saved>0) ? saved : 0.8;
+    slider.value = String(window.ttsRate);
+    valueEl.textContent = window.ttsRate.toFixed(2)+'×';
+    slider.addEventListener('input', function(){ var r=parseFloat(slider.value)||0.8; window.ttsRate=r; valueEl.textContent=r.toFixed(2)+'×'; try{localStorage.setItem('ptr_tts_rate', String(r));}catch{} });
   }catch(e){}
 })();
 </script>
