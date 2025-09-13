@@ -1,529 +1,303 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
-<style id="azureOverride">:root{--bg: linear-gradient(to bottom, #0b63c7, #007fff);} </style>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Parallel Text Reader</title>
+<title>Parallel Text Reader — V2</title>
+<!-- Excel parser -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;padding:1rem;background:linear-gradient(to bottom, #0b63c7, #007fff)}
-  header{background:#2563eb;color:#fff;padding:.8rem;text-align:center;border-radius:10px;font-weight:600}
-  .wrap{max-width:960px;margin:1rem auto;display:grid;gap:1rem}
-  .card{background:#fff;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,.1);padding:1rem}
-  label{font-size:.9rem;color:#374151}
+  /* ===== Base theme (azure) ===== */
+  :root{
+    --bg: linear-gradient(to bottom, #0b63c7, #007fff); /* darker azure */
+    --card:#ffffff; --primary:#1d4ed8; --text:#111827; --muted:#6b7280;
+    --shadow:0 8px 24px rgba(0,0,0,.10); --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:1rem;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:var(--bg);color:var(--text)}
+  header{background:#0b63c7;color:#fff;padding:.85rem 1rem;text-align:center;border-radius:12px;font-weight:700;letter-spacing:.2px;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+  .wrap{max-width:980px;margin:1rem auto;display:grid;gap:1rem}
+  .card{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:1rem}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+  label{font-size:.92rem;color:#374151}
   input,select,button{font-size:1rem}
-  .pane{background:#fff;border:1px solid #e5e7eb;border-radius:10px;min-height:200px;max-height:70vh;overflow-y:auto;line-height:1.8;font-size:1.5rem;padding:1rem}
-  .w{color:#6b7280;cursor:pointer;transition:color .15s linear,background-color .15s linear;border-radius:4px;padding:0 2px}
-  .w.read{color:#064e3b;font-weight:800;background:rgba(16,185,129,.14)}
+  button{cursor:pointer}
+  .pill{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:999px;padding:.25rem .6rem;font-size:.85rem;color:#374151}
+  .ghost{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.55rem .8rem}
+  .ghost:active{transform:translateY(1px)}
   .progress{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden;cursor:pointer}
   .progress>div{height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#22c55e)}
-</style>
+  .pane{background:#fff;border:1px solid #e5e7eb;border-radius:12px;min-height:220px;max-height:70vh;overflow-y:auto;line-height:1.8;font-size:1.5rem;padding:1rem}
+  .w{color:#6b7280;cursor:pointer;transition:color .15s linear,background-color .15s linear;border-radius:4px;padding:0 2px}
+  .w.read{color:#064e3b;font-weight:800;background:rgba(16,185,129,.14)}/* ===== Dark mode ===== */ body.dark { --card:#0f172a; --text:#e5e7eb; --muted:#9ca3af; } body.dark header{background:#1e3a8a} body.dark .card{background:var(--card); color:var(--text)} body.dark label{color:#d1d5db} body.dark select, body.dark input, body.dark button{background:#111827;border-color:#1f2937;color:#e5e7eb} body.dark .pane{background:#0b1220;border-color:#1f2937;color:#e5e7eb} body.dark .progress{background:#1f2937} body.dark .progress>div{background:linear-gradient(90deg,#60a5fa,#34d399)} body.dark .pill{background:#111827;color:#e5e7eb;border:1px solid #1f2937} body.dark .w{color:#9ca3af} body.dark .w.read{color:#a7f3d0;background:rgba(16,185,129,.22)} </style>
+
 </head>
 <body>
 <header>📖 Parallel Text Reader</header>
 <div class="wrap">
+  <!-- Loader / selectors -->
   <section class="card">
-    <label for="csvInput">Add CSV</label>
-    <input id="csvInput" type="file" accept=".csv" multiple />
-    <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
-      <select id="fileSelector"><option>— No CSV loaded —</option></select>
+    <div class="row">
+      <label for="csvInput">Add file (CSV / Excel)</label>
+      <input id="csvInput" type="file" accept=".csv,.xlsx,.xls" multiple />
+      <label style="margin-left:auto" class="inline"><input type="checkbox" id="darkToggle"/> Dark mode</label>
+    </div>
+    <div class="row" style="margin-top:.5rem">
+      <select id="fileSelector"><option>— No file —</option></select>
+      <select id="sheetSelector" disabled><option>— No sheet —</option></select>
       <select id="storySelector"><option>— No story —</option></select>
-      <button id="clearAll">Clear All</button>
-      <span id="statusPill">0 files • 0 stories</span>
+      <button id="clearAll" class="ghost">Clear All</button>
+      <span id="statusPill" class="pill">0 files • 0 stories</span>
     </div>
-  </section>
-
-  <section class="card">
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+  </section>  <!-- Controls & Reader -->  <section class="card">
+    <div class="row" id="toolbar">
+      <span id="nowReading" class="pill">Now reading: —</span>
+      <span id="modePill" class="pill" title="Highlight sync mode">Sync: —</span>
       <button id="playPause" class="ghost">Play Chinese</button>
-        <button id="pauseResume" class="ghost">Pause</button>
-      <button id="stopAll">Stop</button>
-      <button id="resetHL">Reset</button>
-    </div>
-    <label>Highlight speed (WPM):
-      <span id="wpmValue">120</span>
-      <button id="wpmMinus">−</button>
-      <input type="range" id="fallbackWPM" min="60" max="320" step="5" value="120" />
-      <button id="wpmPlus">+</button>
-    </label>
-    <label>Font Size <input type="range" id="fontSize" min="16" max="72" value="28"/></label>
-    <label><input type="checkbox" id="fitWidth"/> Fit text width</label>
-    <label>Start from sentence <select id="startSentence"></select></label>
-    <label><input type="checkbox" id="rememberPos"/> Remember position</label>
-    <div style="margin:.4rem 0"><span id="modePill" style="display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:999px;padding:.25rem .5rem;font-size:.85rem">Sync: —</span></div>
-    <div class="progress"><div id="progressFill"></div></div>
-    <div class="pane" id="englishDisplay"></div>
-  </section>
+      <button id="pauseResume" class="ghost">Pause</button>
+      <button id="stopAll" class="ghost">Stop</button>
+      <button id="resetHL" class="ghost">Reset</button>
+    </div><div class="row" style="margin-top:.5rem">
+  <label>Speech rate (0.5–1.5)
+    <span id="rateValue" class="pill" style="margin-left:.35rem">0.80×</span>
+    <input type="range" id="rateSlider" min="0.5" max="1.5" step="0.05" value="0.8" />
+  </label>
+  <label>Voice
+    <select id="voiceSelect"><option>Loading voices…</option></select>
+  </label>
+  <button id="testVoice" class="ghost">Test voice</button>
 </div>
-<script>
+
+<div class="row" style="margin-top:.5rem">
+  <label>Highlight speed (WPM)
+    <span id="wpmValue" class="pill" style="margin-left:.35rem">80</span>
+    <button id="wpmMinus" class="ghost" style="padding:.35rem .6rem">−</button>
+    <input type="range" id="fallbackWPM" min="60" max="320" step="5" value="80"/>
+    <button id="wpmPlus" class="ghost" style="padding:.35rem .6rem">+</button>
+  </label>
+  <label>Font Size <input type="range" id="fontSize" min="16" max="72" value="28"/></label>
+  <label>Start from sentence <select id="startSentence"></select></label>
+  <label><input type="checkbox" id="rememberPos"/> Remember position</label>
+</div>
+
+<div class="progress" id="progressBar" style="margin:.4rem 0"><div id="progressFill"></div></div>
+<div id="timeInfo" class="pill" style="display:inline-block;margin-bottom:.5rem">00:00 / 00:00</div>
+<div class="pane" id="englishDisplay"></div>
+
+  </section>
+</div><script>
+/************ DOM ************/
 const csvInput=document.getElementById('csvInput');
 const fileSelector=document.getElementById('fileSelector');
+const sheetSelector=document.getElementById('sheetSelector');
 const storySelector=document.getElementById('storySelector');
+const clearAll=document.getElementById('clearAll');
 const statusPill=document.getElementById('statusPill');
+const nowReading=document.getElementById('nowReading');
 const englishDisplay=document.getElementById('englishDisplay');
 const fallbackWPM=document.getElementById('fallbackWPM');
 const fontSize=document.getElementById('fontSize');
-const fitWidth=document.getElementById('fitWidth');
 const startSentence=document.getElementById('startSentence');
 const rememberPos=document.getElementById('rememberPos');
+const progressBar=document.getElementById('progressBar');
 const progressFill=document.getElementById('progressFill');
+const timeInfo=document.getElementById('timeInfo');
 const wpmValue=document.getElementById('wpmValue');
 const wpmMinus=document.getElementById('wpmMinus');
 const wpmPlus=document.getElementById('wpmPlus');
 const playPause=document.getElementById('playPause');
+const pauseResume=document.getElementById('pauseResume');
 const stopAll=document.getElementById('stopAll');
 const resetHL=document.getElementById('resetHL');
 const modePill=document.getElementById('modePill');
+const voiceSelect=document.getElementById('voiceSelect');
+const testVoice=document.getElementById('testVoice');
+const rateSlider=document.getElementById('rateSlider');
+const rateValue=document.getElementById('rateValue');
+const darkToggle=document.getElementById('darkToggle');
 
-let datasets=new Map(); let englishWordSpans=[]; let totalWords=0; let lastWordIndex=-1; let englishSentences=[]; let currentSentenceIdx=0; let currentChinese=''; let currentUtterance=null; let voices=[]; let zhVoice=null; let boundarySupported=false; let hlRAF=null;
+/************ State ************/
+let datasets=new Map(); // name => { type:'csv'|'excel', ... }
+let englishWordSpans=[]; let totalWords=0; let lastWordIndex=-1;
+let englishSentences=[]; let currentSentenceIdx=0;
+let currentChinese='';
+let voices=[]; let zhVoice=null; let currentUtterance=null;
+let hlRAF=null; let boundarySupported=false;
+let isPaused=false; let fbActive=false; let fbStart=0; let fbElapsed=0; let fbWords=0; let fbStartIdx=0; let msPerWord=500;
+let ttsRate=parseFloat(localStorage.getItem('ptr_tts_rate'))||0.8; rateSlider.value=ttsRate; rateValue.textContent=ttsRate.toFixed(2)+'\u00D7';
 
+/************ CSV/Excel ingest ************/
 function parseCSV(text){
   const rows=[]; let i=0,field='',row=[],inQuotes=false;
   text=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
   while(i<text.length){
-    const char=text[i];
-    if(inQuotes){ if(char==='"'){ if(text[i+1]==='"'){field+='"'; i+=2; continue;} inQuotes=false; i++; continue;} else {field+=char; i++; continue;} }
-    else { if(char==='"'){inQuotes=true; i++; continue;} else if(char===','){row.push(field); field=''; i++; continue;} else if(char==='\n'){row.push(field); field=''; rows.push(row); row=[]; i++; continue;} else {field+=char; i++; continue;} }
+    const ch=text[i];
+    if(inQuotes){
+      if(ch==='"'){ if(text[i+1]==='"'){field+='"'; i+=2; continue;} inQuotes=false; i++; continue; }
+      field+=ch; i++; continue;
+    }
+    if(ch==='"'){ inQuotes=true; i++; continue; }
+    if(ch===','){ row.push(field); field=''; i++; continue; }
+    if(ch==='\n'){ row.push(field); field=''; rows.push(row); row=[]; i++; continue; }
+    field+=ch; i++;
   }
   row.push(field); rows.push(row); return rows;
 }
 
-csvInput.addEventListener('change',async e=>{
-  for(const file of e.target.files){
-    const text=await file.text();
-    const rows=parseCSV(text);
-    const stories=[];
-    rows.forEach((r,idx)=>{
-      if(r.length>=3){
-        const chinese=(r[0]||'').trim();
-        const english=(r[1]||'').trim();
-        const title=(r[2]||`Story ${idx+1}`).trim();
-        if(chinese||english) stories.push({title,english,chinese});
-      }
-    });
-    datasets.set(file.name,{fileName:file.name,stories});
-  }
+async function ingestCSV(file){
+  const text=await file.text(); const rows=parseCSV(text); const stories=[];
+  rows.forEach((r,idx)=>{ if(!r||r.length<2) return; const chinese=String(r[0]||'').trim(); const english=String(r[1]||'').trim(); const title=String((r[2]||`Story ${idx+1}`)).trim(); if(chinese||english) stories.push({title,english,chinese}); });
+  datasets.set(file.name,{type:'csv',fileName:file.name,stories});
+}
+
+async function ingestExcel(file){
+  const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'});
+  const sheets=new Map();
+  wb.SheetNames.forEach((name)=>{ const ws=wb.Sheets[name]; const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:false}); const stories=[]; rows.forEach((r,idx)=>{ if(!r||r.length<2) return; const chinese=String(r[0]||'').trim(); const english=String(r[1]||'').trim(); const title=String((r[2]||`Story ${idx+1}`)).trim(); if(chinese||english) stories.push({title,english,chinese}); }); if(stories.length) sheets.set(name,stories); });
+  datasets.set(file.name,{type:'excel',fileName:file.name,sheets});
+}
+
+csvInput.addEventListener('change', async (e)=>{
+  for(const file of e.target.files){ const name=(file.name||'').toLowerCase(); if(name.endsWith('.xlsx')||name.endsWith('.xls')) await ingestExcel(file); else await ingestCSV(file); }
   updateSelectors();
 });
 
+clearAll.addEventListener('click',()=>{ datasets.clear(); updateSelectors(); englishDisplay.textContent=''; nowReading.textContent='Now reading: —'; stopSpeaking(); });
+
+/************ Selectors (files → sheets → stories) ************/
+fileSelector.addEventListener('change',()=>{ populateSheets(); updateStatus(); });
+sheetSelector.addEventListener('change',()=>{ populateStories(); updateStatus(); });
+storySelector.addEventListener('change',()=>{ const {stories,labelPrefix}=currentStoryCollection(); const s=stories[+storySelector.value]; if(s) loadStory(s, `${labelPrefix} • ${s.title}`); });
+
 function updateSelectors(){
-  fileSelector.innerHTML=''; storySelector.innerHTML='';
-  if(datasets.size===0){fileSelector.innerHTML='<option>— No CSV loaded —</option>'; storySelector.innerHTML='<option>— No story —</option>'; statusPill.textContent='0 files • 0 stories'; return;}
-  datasets.forEach((ds,name)=>{fileSelector.appendChild(new Option(name,name));});
+  fileSelector.innerHTML=''; sheetSelector.innerHTML=''; storySelector.innerHTML='';
+  if(datasets.size===0){ fileSelector.innerHTML='<option>— No file —</option>'; sheetSelector.innerHTML='<option>— No sheet —</option>'; sheetSelector.disabled=true; storySelector.innerHTML='<option>— No story —</option>'; statusPill.textContent='0 files • 0 stories'; return; }
+  for(const [name] of datasets) fileSelector.appendChild(new Option(name,name));
   fileSelector.value=[...datasets.keys()][0];
+  populateSheets(); updateStatus();
+}
+
+function populateSheets(){
+  sheetSelector.innerHTML=''; const ds=datasets.get(fileSelector.value);
+  if(!ds){ sheetSelector.innerHTML='<option>— No sheet —</option>'; sheetSelector.disabled=true; populateStories(); return; }
+  if(ds.type==='excel'){
+    sheetSelector.disabled=false; for(const name of ds.sheets.keys()) sheetSelector.appendChild(new Option(name,name));
+    if(ds.sheets.size>0) sheetSelector.value=[...ds.sheets.keys()][0];
+  } else { sheetSelector.disabled=true; sheetSelector.innerHTML='<option>— Not applicable —</option>'; }
   populateStories();
-  let count=0; datasets.forEach(ds=>count+=ds.stories.length);
-  statusPill.textContent=`${datasets.size} files • ${count} stories`;
 }
 
-fileSelector.addEventListener('change',populateStories);
+function currentStoryCollection(){
+  const ds=datasets.get(fileSelector.value); if(!ds) return {stories:[], labelPrefix:''};
+  if(ds.type==='excel'){ const sheetName=sheetSelector.value; return {stories: ds.sheets.get(sheetName)||[], labelPrefix: `${ds.fileName} • ${sheetName}`}; }
+  return {stories: ds.stories||[], labelPrefix: `${ds.fileName}`};
+}
+
 function populateStories(){
-  const ds=datasets.get(fileSelector.value); storySelector.innerHTML='';
-  if(!ds){storySelector.innerHTML='<option>— No story —</option>';return;}
-  ds.stories.forEach((s,i)=>storySelector.appendChild(new Option(s.title,i)));
-  if(ds.stories.length){storySelector.value=0; loadStory(ds.stories[0]);}
+  const {stories,labelPrefix}=currentStoryCollection(); storySelector.innerHTML='';
+  if(!stories.length){ storySelector.innerHTML='<option>— No story —</option>'; englishDisplay.textContent=''; return; }
+  stories.forEach((s,i)=>storySelector.appendChild(new Option(s.title||`Story ${i+1}`, i)));
+  storySelector.value=0; loadStory(stories[0], `${labelPrefix} • ${stories[0].title}`);
 }
 
-storySelector.addEventListener('change',()=>{
-  const ds=datasets.get(fileSelector.value); if(!ds) return;
-  const story=ds.stories[+storySelector.value]; if(story) loadStory(story);
-});
+/************ Rendering & Sentences ************/
+function tokenizeEnglish(text){ const re=/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g; const out=[]; let last=0,m; while((m=re.exec(text))!==null){ if(m.index>last) out.push({type:'other',value:text.slice(last,m.index)}); out.push({type:'word',value:m[0]}); last=m.index+m[0].length; } if(last<text.length) out.push({type:'other',value:text.slice(last)}); return out; }
+function renderEnglishWithSpans(text){ englishDisplay.innerHTML=''; englishWordSpans=[]; totalWords=0; const tokens=tokenizeEnglish(text); tokens.forEach(tok=>{ if(tok.type==='word'){ const span=document.createElement('span'); span.className='w'; span.textContent=tok.value+' '; span.dataset.wi=String(totalWords); span.addEventListener('click',()=> syncToWord(totalWords)); englishWordSpans.push(span); englishDisplay.appendChild(span); totalWords++; } else englishDisplay.appendChild(document.createTextNode(tok.value)); }); }
+function segmentSentences(text){ englishSentences=[]; let cursor=0; const parts=(text||'').split(/(?<=[.?!…])\s+/); parts.forEach((p,i)=>{ const words=(p.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g)||[]).length; if(words){ englishSentences.push({startWordIdx:cursor, endWordIdx:cursor+words-1}); cursor+=words; } }); }
+function rebuildStartDropdown(){ startSentence.innerHTML=''; englishSentences.forEach((seg,i)=>{ const preview=getSentencePreview(i)||`Sentence ${i+1}`; startSentence.appendChild(new Option(`${i+1}. ${preview}`, i)); }); if(englishSentences.length) startSentence.value=0; }
+function getSentencePreview(i){ const seg=englishSentences[i]; if(!seg) return ''; const words=englishWordSpans.slice(seg.startWordIdx,seg.endWordIdx+1).map(s=>s.textContent||''); return words.join(' ').slice(0,60); }
 
-function loadStory(story){ currentChinese = story.chinese || ''; renderEnglishWithSpans(story.english||''); segmentSentences(story.english||''); populateStartSentences(); if(rememberPos.checked) restoreBookmark(); }
+/************ Load story ************/
+function loadStory(story, label){ currentChinese=story.chinese||''; renderEnglishWithSpans(story.english||''); segmentSentences(story.english||''); rebuildStartDropdown(); englishDisplay.scrollTop=0; currentSentenceIdx=0; resetHighlight(); updateProgressBar(0); nowReading.textContent = `Now reading: ${label || (story.title||'—')}`; if(rememberPos.checked) restoreBookmark(); }
 
-function renderEnglishWithSpans(text){
-  englishWordSpans=[]; totalWords=0; englishDisplay.innerHTML='';
-  const tokens=tokenizeEnglish(text);
-  tokens.forEach(tok=>{ if(tok.type==='word'){ const span=document.createElement('span'); span.className='w'; span.textContent=tok.value+' '; span.dataset.wi=totalWords; span.onclick=()=>syncToWord(+span.dataset.wi); englishWordSpans.push(span); englishDisplay.appendChild(span); totalWords++; } else englishDisplay.appendChild(document.createTextNode(tok.value)); });
+/************ Highlight & Progress ************/
+function resetHighlight(){ englishWordSpans.forEach(s=>s.classList.remove('read')); lastWordIndex=-1; updateProgressBar(0); }
+function updateHighlightToIndex(idx){ const c=Math.max(-1,Math.min(idx,totalWords-1)); if(c===lastWordIndex) return; for(let i=lastWordIndex+1;i<=c;i++){ englishWordSpans[i]?.classList.add('read'); } lastWordIndex=c; updateProgressBar((c+1)/Math.max(1,totalWords)); for(let s=0;s<englishSentences.length;s++){ const seg=englishSentences[s]; if(c>=seg.startWordIdx && c<=seg.endWordIdx){ currentSentenceIdx=s; break; } }
 }
-function tokenizeEnglish(text){const re=/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g; const out=[]; let last=0,m; while((m=re.exec(text))!==null){ if(m.index>last) out.push({type:'other',value:text.slice(last,m.index)}); out.push({type:'word',value:m[0]}); last=m.index+m[0].length;} if(last<text.length) out.push({type:'other',value:text.slice(last)}); return out;}
-function segmentSentences(text){ englishSentences=[]; startSentence.innerHTML=''; let cursor=0; const parts=text.split(/(?<=[.?!…])\s+/); parts.forEach((p,i)=>{const words=(p.match(/[A-Za-z0-9]+/g)||[]).length; if(words){englishSentences.push({startWordIdx:cursor,endWordIdx:cursor+words-1}); const preview=(p.replace(/\s+/g,' ').trim()).slice(0,60)||`Sentence ${i+1}`; startSentence.appendChild(new Option(`${i+1}. ${preview}`,i)); cursor+=words;}});}
-function populateStartSentences(){ if(englishSentences.length) startSentence.value=0; }
+function syncToWord(idx){ resetHighlight(); updateHighlightToIndex(idx); if(rememberPos.checked) saveBookmark(); }
+function updateProgressBar(r){ progressFill.style.width=(r*100)+'%'; }
+progressBar.addEventListener('click', (e)=>{ const rect=e.currentTarget.getBoundingClientRect(); const ratio=(e.clientX-rect.left)/rect.width; const idx=Math.floor(ratio*totalWords); syncToWord(idx); });
 
-function updateHighlightToIndex(idx){ const c=Math.max(-1,Math.min(idx,totalWords-1)); if(c===lastWordIndex) return; for(let i=lastWordIndex+1;i<=c;i++){englishWordSpans[i]?.classList.add('read');} lastWordIndex=c; updateProgressBar((c+1)/Math.max(1,totalWords)); }
-function updateProgressBar(r){progressFill.style.width=(r*100)+'%';}
-function syncToWord(idx){resetHighlight(); updateHighlightToIndex(idx);}
-function resetHighlight(){englishWordSpans.forEach(s=>s.classList.remove('read')); lastWordIndex=-1; updateProgressBar(0);}
-
-fontSize.addEventListener('input',()=>{englishDisplay.style.fontSize=fontSize.value+'px';});
-fitWidth.addEventListener('change',()=>{ if(fitWidth.checked) fitToWidth(); });
-function fitToWidth(){ if(!englishWordSpans.length) return; const container=englishDisplay; const maxW=container.clientWidth*0.94; let longest=englishWordSpans[0].textContent||''; englishWordSpans.forEach(s=>{ if((s.textContent||'').length>(longest||'').length) longest=s.textContent; }); let lo=16, hi=96, best=+fontSize.value||28; const probe=document.createElement('span'); probe.style.visibility='hidden'; probe.style.whiteSpace='nowrap'; container.appendChild(probe); while(lo<=hi){ const mid=(lo+hi>>1); probe.style.fontSize=mid+'px'; probe.textContent=longest; const w=probe.offsetWidth; if(w<=maxW){ best=mid; lo=mid+1; } else { hi=mid-1; } } container.removeChild(probe); fontSize.value=best; englishDisplay.style.fontSize=best+'px'; }
-
+/************ Font & Start From ************/
+fontSize.addEventListener('input', ()=>{ englishDisplay.style.fontSize=fontSize.value+'px'; });
 startSentence.addEventListener('change',()=>{ const idx=+startSentence.value; if(englishSentences[idx]){ const s=englishSentences[idx]; syncToWord(s.startWordIdx); currentSentenceIdx=idx; if(rememberPos.checked) saveBookmark(); }});
+
+/************ Bookmarks ************/
 const BOOK_KEY='ptr_bookmarks_v1';
-function storyKey(){ return (fileSelector.value||'file')+'::'+(storySelector.value||'0'); }
-function saveBookmark(){ const key=storyKey(); const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); map[key] = { s: currentSentenceIdx, wi: lastWordIndex }; localStorage.setItem(BOOK_KEY, JSON.stringify(map)); }
-function restoreBookmark(){ if(!rememberPos.checked) return false; const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); const b = map[storyKey()]; if(!b) return false; if(englishSentences[b.s]){ currentSentenceIdx=b.s; const seg=englishSentences[b.s]; syncToWord(Math.max(0, seg.startWordIdx)); return true; } return false; }
-progressFill.parentElement.addEventListener('click',e=>{const rect=e.currentTarget.getBoundingClientRect(); const ratio=(e.clientX-rect.left)/rect.width; const idx=Math.floor(ratio*totalWords); syncToWord(idx);});
+function storyKey(){ return (fileSelector.value||'file')+'::'+(sheetSelector.disabled?'':(sheetSelector.value||''))+'::'+(storySelector.value||'0'); }
+function saveBookmark(){ const key=storyKey(); const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); map[key]={ s: currentSentenceIdx, wi:lastWordIndex }; localStorage.setItem(BOOK_KEY, JSON.stringify(map)); }
+function restoreBookmark(){ const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); const b=map[storyKey()]; if(!b) return false; if(englishSentences[b.s]){ currentSentenceIdx=b.s; const seg=englishSentences[b.s]; syncToWord(Math.max(0, seg.startWordIdx)); return true; } return false; }
 
-fallbackWPM.addEventListener('input',()=>{wpmValue.textContent=fallbackWPM.value;});
-wpmMinus.onclick=()=>{fallbackWPM.value=Math.max(60,+fallbackWPM.value-5); wpmValue.textContent=fallbackWPM.value;};
-wpmPlus.onclick=()=>{fallbackWPM.value=Math.min(320,+fallbackWPM.value+5); wpmValue.textContent=fallbackWPM.value;};
+/************ WPM Controls ************/
+fallbackWPM.addEventListener('input',()=>{ wpmValue.textContent=fallbackWPM.value; });
+wpmMinus.addEventListener('click',()=>{ fallbackWPM.value=Math.max(60,+fallbackWPM.value-5); wpmValue.textContent=fallbackWPM.value; });
+wpmPlus.addEventListener('click',()=>{ fallbackWPM.value=Math.min(320,+fallbackWPM.value+5); wpmValue.textContent=fallbackWPM.value; });
 
-// TTS: boundary sync + timing fallback
-function stopSpeaking(){ if(!('speechSynthesis' in window)) return; speechSynthesis.cancel(); currentUtterance=null; if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } }
-function loadVoices(){ return new Promise(r=>{ const h=()=>{ voices=speechSynthesis.getVoices(); zhVoice = voices.find(v=> (v.lang||'').toLowerCase().startsWith('zh')) || null; r(); }; speechSynthesis.onvoiceschanged=h; h(); setTimeout(h,300); }); }
-function startTimingFallback(){ const wpm=+fallbackWPM.value||120; const msPerWord=60000/Math.max(1,wpm); const start=performance.now(); function tick(now){ const idx=Math.min(totalWords-1, Math.floor((now-start)/msPerWord)); updateHighlightToIndex(idx); if(idx<totalWords-1) hlRAF=requestAnimationFrame(tick); } hlRAF=requestAnimationFrame(tick); modePill.textContent='Sync: timing'; }
-async function playChinese(){ if(!currentChinese) return; await loadVoices(); stopSpeaking(); resetHighlight(); const u=new SpeechSynthesisUtterance(currentChinese); if(zhVoice) u.voice=zhVoice; u.lang=zhVoice?.lang||'zh-CN'; boundarySupported=false; const totalChars=Math.max(1,currentChinese.length);
-  u.onboundary=(e)=>{ if(typeof e.charIndex==='number'){ if(!boundarySupported) modePill.textContent='Sync: speech-boundary'; boundarySupported=true; const ratio=e.charIndex/totalChars; const idx=Math.min(totalWords-1, Math.floor(ratio*totalWords)); updateHighlightToIndex(idx); } };
-  u.onstart=()=>{ if(!boundarySupported) startTimingFallback(); };
-  u.onend=()=>{ if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } updateHighlightToIndex(totalWords-1); currentUtterance=null; };
-  currentUtterance=u; u.rate = (window.ttsRate ?? 0.8); speechSynthesis.speak(u);
-}
+/************ Voices & Rate ************/
+function voiceKey(v){ return (v && (v.voiceURI || v.name)) + '|' + (v?.lang || ''); }
+function pickSelectedVoice(){ if(!voiceSelect||!voices.length) return null; const key=voiceSelect.value; return voices.find(v=> voiceKey(v)===key) || null; }
+function populateVoiceSelect(){ const vs=speechSynthesis.getVoices(); if(vs && vs.length) voices=vs; voiceSelect.innerHTML=''; const chosen=(localStorage.getItem('ptr_voice_key')||''); const zh=voices.filter(v=>(v.lang||'').toLowerCase().startsWith('zh')); const rest=voices.filter(v=>!(v.lang||'').toLowerCase().startsWith('zh')); const ordered=[...zh,...rest]; ordered.forEach(v=>{ const opt=document.createElement('option'); opt.value=voiceKey(v); opt.textContent=`${v.name} — ${v.lang}${v.default?' (default)':''}`; voiceSelect.appendChild(opt); }); let target=chosen; if(!target && ordered.length) target=voiceKey(ordered[0]); if(target) voiceSelect.value=target; updateWorkingVoice(); }
+function updateWorkingVoice(){ const v=pickSelectedVoice(); if(v){ zhVoice=v; try{ localStorage.setItem('ptr_voice_key', voiceSelect.value); }catch{} } }
+if('speechSynthesis' in window){ speechSynthesis.addEventListener('voiceschanged', populateVoiceSelect); }
+populateVoiceSelect();
+
+rateSlider.addEventListener('input',()=>{ ttsRate=parseFloat(rateSlider.value)||0.8; rateValue.textContent=ttsRate.toFixed(2)+'\u00D7'; try{localStorage.setItem('ptr_tts_rate', String(ttsRate));}catch{} });
+
+testVoice.addEventListener('click',()=>{ try{ stopSpeaking(); const u=new SpeechSynthesisUtterance('你好! Hello!'); if(zhVoice) u.voice=zhVoice; u.lang=zhVoice?.lang||'zh-CN'; u.rate=ttsRate; speechSynthesis.speak(u);}catch{} });
+
+/************ TTS + Sync ************/
+function stopSpeaking(){ if(!('speechSynthesis' in window)) return; speechSynthesis.cancel(); currentUtterance=null; if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } fbActive=false; }
+function startTimingFallback(range){ const wpm=+fallbackWPM.value||80; msPerWord=60000/Math.max(1,wpm); fbActive=true; fbElapsed=0; fbStart=performance.now(); fbStartIdx = range?range.startWordIdx:0; fbWords = range? (range.endWordIdx-range.startWordIdx+1) : Math.max(1,totalWords); function tick(now){ if(!fbActive) return; const t=fbElapsed+(now-fbStart); const ratio=Math.min(1, t/(fbWords*msPerWord)); const idx=Math.floor(fbStartIdx + ratio*fbWords); updateHighlightToIndex(idx); if(ratio<1) hlRAF=requestAnimationFrame(tick); } hlRAF=requestAnimationFrame(tick); modePill.textContent='Sync: timing'; }
+async function playChinese(){ if(!currentChinese) return; stopSpeaking(); resetHighlight(); boundarySupported=false; const u=new SpeechSynthesisUtterance(currentChinese); if(zhVoice) u.voice=zhVoice; u.lang=zhVoice?.lang||'zh-CN'; u.rate=ttsRate; const totalChars=Math.max(1,currentChinese.length); u.onboundary=(e)=>{ if(typeof e.charIndex==='number'){ if(!boundarySupported) modePill.textContent='Sync: speech-boundary'; boundarySupported=true; const ratio=e.charIndex/totalChars; const idx=Math.min(totalWords-1, Math.floor(ratio*totalWords)); updateHighlightToIndex(idx); } }; u.onstart=()=>{ if(!boundarySupported) startTimingFallback(); }; u.onend=()=>{ if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } updateHighlightToIndex(totalWords-1); currentUtterance=null; fbActive=false; }; currentUtterance=u; speechSynthesis.speak(u); }
+
+/************ Controls ************/
 playPause.addEventListener('click', ()=>{ if(currentUtterance) stopSpeaking(); else playChinese(); });
 stopAll.addEventListener('click', stopSpeaking);
 resetHL.addEventListener('click', resetHighlight);
+pauseResume.addEventListener('click', ()=>{ if(!isPaused){ isPaused=true; pauseResume.textContent='Resume'; try{ if('speechSynthesis' in window && speechSynthesis.speaking && !speechSynthesis.paused) speechSynthesis.pause(); }catch{} if(fbActive && hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; fbElapsed += performance.now()-fbStart; } } else { isPaused=false; pauseResume.textContent='Pause'; try{ if('speechSynthesis' in window && speechSynthesis.paused) speechSynthesis.resume(); }catch{} if(fbActive){ fbStart=performance.now(); function tick(now){ if(!fbActive) return; const t=fbElapsed+(now-fbStart); const ratio=Math.min(1, t/(fbWords*msPerWord)); const idx=Math.floor(fbStartIdx + ratio*fbWords); updateHighlightToIndex(idx); if(ratio<1) hlRAF=requestAnimationFrame(tick);} hlRAF=requestAnimationFrame(tick);} } });
 
-// Keyboard shortcuts: Space play/pause, +/- WPM, [ ] prev/next sentence
-document.addEventListener('keydown', (e)=>{
-  const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-  if (e.key === ' ') { e.preventDefault(); if (currentUtterance) stopSpeaking(); else playChinese(); }
-  else if (e.key === '+' || e.key === '=') { fallbackWPM.value = Math.min(320, +fallbackWPM.value + 5); wpmValue.textContent = fallbackWPM.value; }
-  else if (e.key === '-' || e.key === '_') { fallbackWPM.value = Math.max(60, +fallbackWPM.value - 5); wpmValue.textContent = fallbackWPM.value; }
-  else if (e.key === '[') { const prev = Math.max(0, currentSentenceIdx - 1); if (englishSentences[prev]) { const s = englishSentences[prev]; currentSentenceIdx = prev; syncToWord(s.startWordIdx); } }
-  else if (e.key === ']') { const next = Math.min(englishSentences.length - 1, currentSentenceIdx + 1); if (englishSentences[next]) { const s = englishSentences[next]; currentSentenceIdx = next; syncToWord(s.startWordIdx); } }
-});
+/************ Dark mode toggle ************/
+(function(){ const key='ptr_dark'; const saved=(localStorage.getItem(key)==='1'); document.body.classList.toggle('dark', saved); if(darkToggle){ darkToggle.checked=saved; darkToggle.addEventListener('change',()=>{ const v=darkToggle.checked; document.body.classList.toggle('dark', v); try{localStorage.setItem(key, v?'1':'0');}catch{} }); } })();
 
-// init
-wpmValue.textContent=fallbackWPM.value;
-englishDisplay.textContent='Load a CSV to begin.';
-// === Inject Voice Picker UI & Wiring ===
-(function(){
-  try{
-    const grid = document.querySelector('.controls-grid') || document.body;
-    if(!grid) return;
-    // Build UI block only if not already present
-    if (!document.getElementById('voiceSelect')){
-      const stack = document.createElement('div');
-      stack.className = 'stack';
-      stack.innerHTML = `
-        <label for="voiceSelect">Voice</label>
-        <select id="voiceSelect"><option>Loading voices…</option></select>
-        <button id="testVoice" class="ghost" style="margin-top:.25rem">Test voice</button>
-      `;
-      grid.appendChild(stack);
-    }
-    const voiceSelect = document.getElementById('voiceSelect');
-    const testVoice = document.getElementById('testVoice');
+/************ Keyboard shortcuts ************/
+document.addEventListener('keydown',(e)=>{ const tag=(e.target&&e.target.tagName)?e.target.tagName.toUpperCase():''; if(tag==='INPUT'||tag==='TEXTAREA') return; if(e.key===' '){ e.preventDefault(); if(currentUtterance) stopSpeaking(); else playChinese(); } else if(e.key==='+'||e.key==='='){ fallbackWPM.value=Math.min(320,+fallbackWPM.value+5); wpmValue.textContent=fallbackWPM.value; } else if(e.key==='-'||e.key==='_'){ fallbackWPM.value=Math.max(60,+fallbackWPM.value-5); wpmValue.textContent=fallbackWPM.value; } else if(e.key==='['){ const prev=Math.max(0,currentSentenceIdx-1); if(englishSentences[prev]){ const s=englishSentences[prev]; currentSentenceIdx=prev; syncToWord(s.startWordIdx); } } else if(e.key===']'){ const next=Math.min(englishSentences.length-1,currentSentenceIdx+1); if(englishSentences[next]){ const s=englishSentences[next]; currentSentenceIdx=next; syncToWord(s.startWordIdx); } } });
 
-    function voiceKey(v){ return (v && (v.voiceURI || v.name)) + '|' + (v?.lang || ''); }
-    function pickSelectedVoice(){ if(!voiceSelect||!window.voices?.length) return null; const key=voiceSelect.value; return window.voices.find(v=> voiceKey(v)===key) || null; }
-    function populateVoiceSelect(){
-      if (!('speechSynthesis' in window)) return;
-      const vs = speechSynthesis.getVoices();
-      if (vs && vs.length) window.voices = vs;
-      if (!voiceSelect) return;
-      const chosen = (localStorage.getItem('ptr_voice_key')||'');
-      voiceSelect.innerHTML = '';
-      const zh = (window.voices||[]).filter(v=> (v.lang||'').toLowerCase().startsWith('zh'));
-      const rest = (window.voices||[]).filter(v=> !(v.lang||'').toLowerCase().startsWith('zh'));
-      const ordered = [...zh, ...rest];
-      ordered.forEach(v=>{
-        const opt = document.createElement('option');
-        opt.value = voiceKey(v);
-        opt.textContent = `${v.name} — ${v.lang}${v.default?' (default)':''}`;
-        voiceSelect.appendChild(opt);
-      });
-      let target = chosen;
-      if (!target && ordered.length){ target = voiceKey(ordered[0]); }
-      if (target) voiceSelect.value = target;
-    }
-    function updateWorkingVoice(){
-      const v = pickSelectedVoice();
-      if (v) { window.zhVoice = v; try{ localStorage.setItem('ptr_voice_key', voiceSelect.value);}catch{} }
-    }
+/************ Status & Init ************/
+function updateStatus(){ let files=datasets.size; let stories=0; for(const ds of datasets.values()){ if(ds.type==='excel'){ for(const arr of ds.sheets.values()) stories += arr.length; } else { stories += (ds.stories?.length||0); } } statusPill.textContent=`${files} file${files!==1?'s':''} • ${stories} stor${stories===1?'y':'ies'}`; }
+wpmValue.textContent=fallbackWPM.value; englishDisplay.textContent='Load a CSV/Excel to begin.'; updateStatus();
 
-    if ('speechSynthesis' in window){
-      speechSynthesis.addEventListener('voiceschanged', ()=>{ populateVoiceSelect(); updateWorkingVoice(); });
-    }
-    populateVoiceSelect(); updateWorkingVoice();
+/************ Simple self-tests (console) ************/
+(function selfTests(){
+  const tests=[]; const ok=(name,cond)=>tests.push([name,!!cond]);
 
-    if (voiceSelect){ voiceSelect.addEventListener('change', ()=> updateWorkingVoice()); }
-    if (testVoice){
-      testVoice.addEventListener('click', ()=>{
-        if (!('speechSynthesis' in window)) return;
-        if (!window.zhVoice){ updateWorkingVoice(); }
-        if (typeof stopSpeaking === 'function') stopSpeaking();
-        const u = new SpeechSynthesisUtterance('你好！ Hello!');
-        u.lang = (window.zhVoice?.lang || 'zh-CN');
-        if (window.zhVoice) u.voice = window.zhVoice;
-        u.rate = (window.ttsRate ?? 0.8);
-        speechSynthesis.speak(u);
-      });
-    }
-  }catch(e){ /* no-op */ }
+  // Build HTML snapshot without <script> and <style> to avoid false positives
+  const clone=document.documentElement.cloneNode(true);
+  clone.querySelectorAll('script,style').forEach(n=>n.remove());
+  const htmlNoScripts=clone.innerHTML;
+
+  ok('No $1 placeholders', !/\$1\b/.test(htmlNoScripts));
+  ok('Has toolbar', !!document.getElementById('toolbar'));
+  ok('Has Play', !!document.getElementById('playPause'));
+  ok('Has Pause', !!document.getElementById('pauseResume'));
+  ok('Has Stop', !!document.getElementById('stopAll'));
+  ok('Has rate slider', !!document.getElementById('rateSlider'));
+  ok('Has WPM slider', !!document.getElementById('fallbackWPM'));
+  ok('Has story selector', !!document.getElementById('storySelector'));
+  ok('Has sheet selector', !!document.getElementById('sheetSelector'));
+  ok('Has voice select', !!document.getElementById('voiceSelect'));
+  ok('Default WPM is 80', document.getElementById('fallbackWPM') && document.getElementById('fallbackWPM').value === '80');
+  ok('Default TTS rate ~0.8', Math.abs((parseFloat(localStorage.getItem('ptr_tts_rate'))||0.8)-0.8) < 1e-9);
+
+  const allPass = tests.every(t=>t[1]);
+  if(!allPass){
+    console.group('%cParallel Text Reader — Self-tests failed','color:#b91c1c');
+    tests.forEach(([n,p])=>console[p?'log':'error']((p?'✔':'✖')+' '+n));
+    console.groupEnd();
+  } else {
+    console.group('%cParallel Text Reader — Self-tests passed','color:#065f46');
+    tests.forEach(([n])=>console.log('✔ '+n));
+    console.groupEnd();
+  }
 })();
-// === Rate slider (safe inject) ===
-(function(){
-  try{
-    const grid = document.querySelector('.controls-grid') || document.body;
-    if(!grid) return;
-    if (!document.getElementById('rateSlider')){
-      const stack = document.createElement('div');
-      stack.className = 'stack';
-      stack.innerHTML = `
-        <label for="rateSlider">Speech rate (0.5–1.5)
-          <span id="rateValue" class="pill" style="margin-left:.35rem"></span>
-        </label>
-        <input type="range" id="rateSlider" min="0.5" max="1.5" step="0.05" />
-      `;
-      grid.appendChild(stack);
-    }
-    const RATE_KEY='ptr_tts_rate';
-    const slider=document.getElementById('rateSlider');
-    const val=document.getElementById('rateValue');
-    const saved=parseFloat(localStorage.getItem(RATE_KEY));
-    window.ttsRate = (Number.isFinite(saved) && saved>0) ? saved : 0.8;
-    if (slider){
-      slider.value = String(window.ttsRate);
-      if (val) val.textContent = window.ttsRate.toFixed(2) + '×';
-      slider.addEventListener('input', ()=>{
-        const r = parseFloat(slider.value) || 0.8;
-        window.ttsRate = r;
-        if (val) val.textContent = r.toFixed(2) + '×';
-        try{ localStorage.setItem(RATE_KEY, String(r)); }catch{}
-      });
-    }
-  }catch(e){ /* no-op */ }
-})();
-// === Dark mode (safe inject) ===
-(function(){
-  try{
-    const css = `
-      body.dark { --bg: linear-gradient(to bottom, #0b63c7, #007fff); --card:#0f172a; --primary:#60a5fa; --text:#e5e7eb; --muted:#9ca3af; }
-      body.dark .pane{ box-shadow: inset 0 0 0 1px #1f2937; }
-      body.dark .progress{ background:#1f2937; }
-      body.dark .progress>div{ background:linear-gradient(90deg,#60a5fa,#34d399); }
-      body.dark .pill{ background:#111827; color:#e5e7eb; border:1px solid #1f2937; }
-      body.dark .w.read{ background:rgba(16,185,129,.22); color:#a7f3d0; }
-    `;
-    const style=document.createElement('style'); style.textContent=css; document.head.appendChild(style);
-    const grid=document.querySelector('.controls-grid')||document.body;
-    if(grid && !document.getElementById('darkToggle')){
-      const wrap=document.createElement('div'); wrap.className='stack';
-      wrap.innerHTML = `<label class="inline"><input type="checkbox" id="darkToggle"/> Dark mode</label>`;
-      grid.appendChild(wrap);
-    }
-    const key='ptr_dark';
-    const el=document.getElementById('darkToggle');
-    function apply(v){ document.body.classList.toggle('dark', !!v); if(el) el.checked=!!v; }
-    let saved = (localStorage.getItem(key)==='1');
-    apply(saved);
-    if(el){ el.addEventListener('change', ()=>{ saved = el.checked; try{ localStorage.setItem(key, saved?'1':'0'); }catch{} apply(saved); }); }
-  }catch(e){ /* no-op */ }
-})();
-
-// === Time indicator (safe inject) ===
-(function(){
-  try{
-    const bar=document.getElementById('progressBar');
-    if(bar && !document.getElementById('timeInfo')){
-      const t=document.createElement('div'); t.id='timeInfo'; t.className='help'; t.textContent='00:00 / 00:00'; t.style.marginTop='.25rem'; bar.insertAdjacentElement('afterend', t);
-    }
-    const timeEl=document.getElementById('timeInfo');
-    function fmt(ms){ let s=Math.max(0,Math.round(ms/1000)); let m=(s/60)|0; s=s%60; return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
-    function refresh(){
-      try{
-        const wpmEl = document.getElementById('fallbackWPM');
-        const wpm = parseInt(wpmEl?.value||'120',10);
-        const msPerWord = 60000/Math.max(1,wpm);
-        let wordsTotal = window.totalWords||0; let offset=0;
-        if (window.loopSentence && document.getElementById('loopSentence')?.checked && Array.isArray(window.englishSentences) && window.englishSentences[window.currentSentenceIdx]){
-          const seg = window.englishSentences[window.currentSentenceIdx];
-          wordsTotal = Math.max(1, (seg.endWordIdx - seg.startWordIdx + 1));
-          offset = seg.startWordIdx;
-        }
-        const totalMs = wordsTotal * msPerWord;
-        const idx = Math.max(-1, window.lastWordIndex ?? -1);
-        const elapsedWords = Math.max(0, idx - offset + 1);
-        const elapsedMs = Math.min(totalMs, elapsedWords * msPerWord);
-        if (timeEl) timeEl.textContent = `${fmt(elapsedMs)} / ${fmt(totalMs)}`;
-      }catch{ /* no-op */ }
-      requestAnimationFrame(refresh);
-    }
-    requestAnimationFrame(refresh);
-  }catch(e){ /* no-op */ }
-})();
-
-// === Double-click to loop sentence (safe inject) ===
-(function(){
-  try{
-    const root=document.getElementById('englishDisplay');
-    if(!root) return;
-    function sentenceIdxForWord(wi){
-      if(!Array.isArray(window.englishSentences)) return -1;
-      for(let i=0;i<window.englishSentences.length;i++){
-        const s=window.englishSentences[i];
-        if (wi>=s.startWordIdx && wi<=s.endWordIdx) return i;
-      }
-      return -1;
-    }
-    root.addEventListener('dblclick', (e)=>{
-      const t=e.target; if(!t || !t.classList || !t.classList.contains('w')) return;
-      const wi = parseInt(t.dataset.wi||'-1',10); if (Number.isNaN(wi) || wi<0) return;
-      const idx = sentenceIdxForWord(wi); if (idx<0) return;
-      try { if (typeof stopSpeaking==='function') stopSpeaking(); } catch {}
-      const loopCb = document.getElementById('loopSentence'); if(loopCb) loopCb.checked=true;
-      window.currentSentenceIdx = idx;
-      if (typeof window.jumpToSentence==='function') window.jumpToSentence(idx);
-      if (typeof window.loopCurrentSentence==='function') window.loopCurrentSentence();
-      if (document.getElementById('rememberPos')?.checked && typeof window.saveBookmark==='function') window.saveBookmark();
-    });
-  }catch(e){ /* no-op */ }
-})();
-</script>
-<script>
-// Hide deprecated Fit Text Width control if present
-(function(){try{var fw=document.getElementById('fitWidth');if(fw){var blk=fw.closest('.stack')||fw.closest('.inline')||fw.parentElement; if(blk) blk.style.display='none';}}catch(e){}}
-)();
-
-// Pause/Resume + robust timing fallback override
-(function(){
-  try{
-    var btn=document.getElementById('pauseResume');
-    window._fbActive = window._fbActive || false;
-    window._fbStart = window._fbStart || 0;
-    window._fbElapsedMs = window._fbElapsedMs || 0;
-    window._fbTotalMs = window._fbTotalMs || 0;
-    window._fbStartIndex = window._fbStartIndex || 0;
-    window._fbEndIndex = window._fbEndIndex || 0;
-    window.isPaused = window.isPaused || false;
-
-    // Override timing fallback to be pause/resume aware
-    window.startTimingFallback = function(range){
-      var wpmEl = document.getElementById('fallbackWPM');
-      var wpm = parseInt((wpmEl && wpmEl.value) || '120', 10);
-      var start = 0, end = (window.totalWords || 1) - 1;
-      if (range && typeof range.startWordIdx === 'number'){ start = range.startWordIdx; end = range.endWordIdx; }
-      var words = Math.max(1, end - start + 1);
-      var msPerWord = 60000/Math.max(1,wpm);
-      window._fbActive = true;
-      window._fbStartIndex = start;
-      window._fbEndIndex = end;
-      window._fbTotalMs = words * msPerWord;
-      window._fbElapsedMs = 0;
-      window._fbStart = performance.now();
-      function tick(now){
-        if (!window._fbActive) return;
-        var t = window._fbElapsedMs + (now - window._fbStart);
-        var ratio = Math.min(1, t / window._fbTotalMs);
-        var idx = Math.floor(start + ratio * words);
-        if (typeof window.updateHighlightToIndex === 'function') window.updateHighlightToIndex(idx);
-        if (ratio < 1) { window.hlRAF = requestAnimationFrame(tick); }
-        else if (document.getElementById('loopSentence') && document.getElementById('loopSentence').checked) {
-          if (typeof window.loopCurrentSentence === 'function') window.loopCurrentSentence();
-        }
-      }
-      window._fbTick = tick;
-      if (window.hlRAF) cancelAnimationFrame(window.hlRAF);
-      window.hlRAF = requestAnimationFrame(tick);
-      var pill=document.getElementById('modePill'); if (pill) pill.textContent='Sync: timing';
-    };
-
-    // Make loopCurrentSentence use the same driver
-    window.loopCurrentSentence = function(){
-      if (!Array.isArray(window.englishSentences) || !window.englishSentences.length) return;
-      var s = window.englishSentences[window.currentSentenceIdx] || window.englishSentences[0];
-      for (var i=s.startWordIdx;i<=s.endWordIdx;i++){ if (window.englishWordSpans && window.englishWordSpans[i]) window.englishWordSpans[i].classList.remove('read'); }
-      window.lastWordIndex = s.startWordIdx - 1;
-      window._fbActive = false; if (window.hlRAF) cancelAnimationFrame(window.hlRAF);
-      window.startTimingFallback({startWordIdx:s.startWordIdx, endWordIdx:s.endWordIdx});
-    };
-
-    function pausePlayback(){
-      if (window.isPaused) return; window.isPaused = true;
-      if ('speechSynthesis' in window && window.speechSynthesis.speaking && !window.speechSynthesis.paused) { window.speechSynthesis.pause(); }
-      if (window._fbActive && window.hlRAF){ cancelAnimationFrame(window.hlRAF); window.hlRAF=null; window._fbElapsedMs += performance.now() - window._fbStart; }
-      if (btn) btn.textContent='Resume';
-    }
-    function resumePlayback(){
-      if (!window.isPaused) return; window.isPaused = false;
-      if ('speechSynthesis' in window && window.speechSynthesis.paused){ window.speechSynthesis.resume(); }
-      if (window._fbActive){ window._fbStart = performance.now(); if (window._fbTick) window.hlRAF = requestAnimationFrame(window._fbTick); }
-      if (btn) btn.textContent='Pause';
-    }
-    window.pausePlayback=pausePlayback; window.resumePlayback=resumePlayback;
-    if (btn){ btn.addEventListener('click', function(){ if (window.isPaused) resumePlayback(); else pausePlayback(); }); }
-  }catch(e){}
-})();
-</script>
-<script>
-// Ensure Play button exists and remove stray "$1" text
-(function(){
-  try{
-    var toolbar = document.querySelector('.toolbar');
-    if (!toolbar) return;
-    // remove any stray "$1" text nodes
-    Array.from(toolbar.childNodes).forEach(function(n){
-      if (n.nodeType===3 && /\$1/.test(n.textContent)) { n.textContent=''; }
-    });
-    // add Play button if missing
-    if (!document.getElementById('playPause')){
-      var btn = document.createElement('button');
-      btn.id = 'playPause'; btn.className = 'ghost'; btn.textContent = 'Play';
-      var before = document.getElementById('pauseResume');
-      toolbar.insertBefore(btn, before || null);
-      btn.addEventListener('click', function(){
-        try {
-          if (window.currentUtterance) { if (typeof stopSpeaking==='function') stopSpeaking(); }
-          else { if (typeof playChinese==='function') playChinese(); }
-        } catch(e){}
-      });
-    }
-  }catch(e){ /* no-op */ }
-})();
-</script>
-<script>
-// Remove Fit Text Width control entirely if present
-(function(){
-  try{
-    var fit = document.getElementById('fitWidth');
-    if (fit){
-      var blk = fit.closest('.stack') || fit.closest('label') || fit.parentElement;
-      if (blk) blk.remove();
-    }
-  }catch(e){}
-})();
-
-// Ensure Play button exists; replace any stray "$1"
-(function(){
-  try{
-    var toolbar = document.getElementById('toolbar') || document.querySelector('.toolbar');
-    if (!toolbar) return;
-    Array.from(toolbar.childNodes).forEach(function(n){ if(n.nodeType===3 && /\$1/.test(n.textContent)) n.textContent=''; });
-    if (!document.getElementById('playPause')){
-      var btn=document.createElement('button'); btn.id='playPause'; btn.className='ghost'; btn.textContent='Play Chinese';
-      toolbar.insertBefore(btn, toolbar.firstChild);
-      btn.addEventListener('click', function(){ try{ if(window.currentUtterance){ if(typeof stopSpeaking==='function') stopSpeaking(); } else { if(typeof playChinese==='function') playChinese(); } }catch(e){} });
-    }
-  }catch(e){}
-})();
-
-// Add visible TTS speed slider if missing and wire it up
-(function(){
-  try{
-    if (document.getElementById('rateSlider')) return; // already present
-    var toolbar = document.getElementById('toolbar') || document.querySelector('.toolbar');
-    if (!toolbar) return;
-    var container = toolbar.parentElement;
-    var row = document.createElement('div'); row.className='row'; row.style.marginTop='.5rem';
-    row.innerHTML = '
-      <label>Speech rate (0.5–1.5)
-        <span id="rateValue" class="pill" style="margin-left:.35rem">0.80×</span>
-        <input type="range" id="rateSlider" min="0.5" max="1.5" step="0.05" value="0.8" />
-      </label>
-    ';
-    container.insertBefore(row, container.querySelector('.progress'));
-    var slider = document.getElementById('rateSlider');
-    var valueEl = document.getElementById('rateValue');
-    var saved = parseFloat(localStorage.getItem('ptr_tts_rate'));
-    window.ttsRate = (Number.isFinite(saved) && saved>0) ? saved : 0.8;
-    slider.value = String(window.ttsRate);
-    valueEl.textContent = window.ttsRate.toFixed(2)+'×';
-    slider.addEventListener('input', function(){ var r=parseFloat(slider.value)||0.8; window.ttsRate=r; valueEl.textContent=r.toFixed(2)+'×'; try{localStorage.setItem('ptr_tts_rate', String(r));}catch{} });
-  }catch(e){}
-})();
-</script>
-</body>
+</script></body>
 </html>
+
