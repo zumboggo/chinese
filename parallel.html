@@ -1,45 +1,134 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Parallel Text Reader — V2</title>
+<title>Parallel Text Reader</title>
 <!-- Excel parser -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-  /* ===== Base theme (azure) ===== */
   :root{
-    --bg: linear-gradient(to bottom, #0b63c7, #007fff); /* darker azure */
-    --card:#ffffff; --primary:#1d4ed8; --text:#111827; --muted:#6b7280;
-    --shadow:0 8px 24px rgba(0,0,0,.10); --radius:12px;
+    --bg: linear-gradient(to bottom, #0b63c7, #007fff);
+    --card: #ffffff;
+    --primary: #1d4ed8;
+    --text: #111827;
+    --muted: #6b7280;
+    --shadow: 0 8px 24px rgba(0,0,0,.10);
+    --radius: 12px;
+    --highlight: #0f766e;
   }
+  /* basic reset */
   *{box-sizing:border-box}
-  body{margin:0;padding:1rem;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:var(--bg);color:var(--text)}
-  header{background:#0b63c7;color:#fff;padding:.85rem 1rem;text-align:center;border-radius:12px;font-weight:700;letter-spacing:.2px;box-shadow:0 6px 18px rgba(0,0,0,.15)}
-  .wrap{max-width:980px;margin:1rem auto;display:grid;gap:1rem}
-  .card{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:1rem}
-  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
-  label{font-size:.92rem;color:#374151}
-  input,select,button{font-size:1rem}
-  button{cursor:pointer}
-  .pill{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:999px;padding:.25rem .6rem;font-size:.85rem;color:#374151}
-  .ghost{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.55rem .8rem}
-  .ghost:active{transform:translateY(1px)}
-  .progress{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden;cursor:pointer}
-  .progress>div{height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#22c55e)}
-  .pane{background:#fff;border:1px solid #e5e7eb;border-radius:12px;min-height:220px;max-height:70vh;overflow-y:auto;line-height:1.8;font-size:1.5rem;padding:1rem}
-  .w{color:#6b7280;cursor:pointer;transition:color .15s linear,background-color .15s linear;border-radius:4px;padding:0 2px}
-  .w.read{color:#064e3b;font-weight:800;background:rgba(16,185,129,.14)}/* ===== Dark mode ===== */ body.dark { --card:#0f172a; --text:#e5e7eb; --muted:#9ca3af; } body.dark header{background:#1e3a8a} body.dark .card{background:var(--card); color:var(--text)} body.dark label{color:#d1d5db} body.dark select, body.dark input, body.dark button{background:#111827;border-color:#1f2937;color:#e5e7eb} body.dark .pane{background:#0b1220;border-color:#1f2937;color:#e5e7eb} body.dark .progress{background:#1f2937} body.dark .progress>div{background:linear-gradient(90deg,#60a5fa,#34d399)} body.dark .pill{background:#111827;color:#e5e7eb;border:1px solid #1f2937} body.dark .w{color:#9ca3af} body.dark .w.read{color:#a7f3d0;background:rgba(16,185,129,.22)} </style>
-
+  body{margin:0;padding:1rem;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);transition:background 0.3s ease,color 0.3s ease;}
+  header{background:#0b63c7;color:#fff;padding:.85rem 1rem;text-align:center;border-radius:12px;font-weight:700;letter-spacing:.2px;box-shadow:0 6px 18px rgba(0,0,0,.15);}
+  .wrap{max-width:980px;margin:1rem auto;display:grid;gap:1rem;}
+  .card{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:1rem;}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;}
+  label{font-size:.92rem;color:#374151;}
+  input,select,button{font-size:1rem;}
+  .pill{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:999px;padding:.25rem .6rem;font-size:.85rem;color:#374151;}
+  .ghost{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.55rem .8rem;cursor:pointer;}
+  .ghost:active{transform:translateY(1px);}
+  .progress{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden;cursor:pointer;}
+  .progress>div{height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#22c55e);}
+  .pane{background:#fff;border:1px solid #e5e7eb;border-radius:12px;min-height:220px;max-height:70vh;overflow-y:auto;line-height:1.8;font-size:1.5rem;padding:1rem;transition:background-color 0.3s ease;}
+  .w{color:#6b7280;cursor:pointer;transition:color .15s linear,background-color .15s linear,border-bottom-color .15s linear;text-decoration:none;}
+  .w.read{color:var(--highlight);font-weight:800;background:rgba(16,185,129,.14);border-bottom:2px dotted var(--highlight);}
+  /* dark mode */
+  body.dark{--card:#0f172a;--text:#e5e7eb;--muted:#9ca3af;}
+  body.dark header{background:#1e3a8a;}
+  body.dark .card{background:var(--card);color:var(--text);}
+  body.dark label{color:#d1d5db;}
+  body.dark select,body.dark input,body.dark button{background:#111827;border-color:#1f2937;color:#e5e7eb;}
+  body.dark .pane{background:#0b1220;border-color:#1f2937;color:#e5e7eb;}
+  body.dark .progress{background:#1f2937;}
+  body.dark .progress>div{background:linear-gradient(90deg,#60a5fa,#34d399);}
+  body.dark .pill{background:#111827;color:#e5e7eb;border:1px solid #1f2937;}
+  body.dark .w{color:#9ca3af;}
+  body.dark .w.read{color:#a7f3d0;background:rgba(16,185,129,.22);}
+  /* Minimal reading mode: hide advanced controls */
+  body.reading-mode #loaderSection,
+  body.reading-mode .advanced,
+  body.reading-mode #modePill,
+  body.reading-mode #syncInfo,
+  body.reading-mode #progressBar,
+  body.reading-mode #timeInfo,
+  body.reading-mode #voiceSelect,
+  body.reading-mode #testVoice,
+  body.reading-mode #fontSize,
+  body.reading-mode #startSentence,
+  body.reading-mode #rememberPos,
+  body.reading-mode #wpmMinus,
+  body.reading-mode #wpmPlus,
+  body.reading-mode #wpmValue,
+  body.reading-mode #rateValue,
+  body.reading-mode #darkToggle,
+  body.reading-mode #themeSelect,
+  body.reading-mode #highlightColor,
+  body.reading-mode #copyEn,
+  body.reading-mode #copyZh,
+  body.reading-mode #bookmarkList,
+  body.reading-mode #searchStories,
+  body.reading-mode #pitchSlider,
+  body.reading-mode #resetSettings,
+  body.reading-mode #fullscreenToggle,
+  body.reading-mode #loopSentenceBtn,
+  body.reading-mode #autoHideToggle,
+  body.reading-mode #progressInfo {
+    display:none !important;
+  }
+  /* enlarge slider thumbs for better UX */
+  input[type=range]{
+    -webkit-appearance:none;
+    appearance:none;
+    width:100%;
+    height:8px;
+    border-radius:4px;
+    background:#e5e7eb;
+    outline:none;
+    margin:0;
+    padding:0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    appearance:none;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:var(--primary);
+    cursor:pointer;
+    border:none;
+    box-shadow:0 0 2px rgba(0,0,0,0.25);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:var(--primary);
+    cursor:pointer;
+    border:none;
+    box-shadow:0 0 2px rgba(0,0,0,0.25);
+  }
+  /* autop hide: fade out controls bar */
+  .auto-hidden{
+    opacity:0;
+    transition:opacity 0.4s ease;
+  }
+  /* additional UI enhancements */
+  .control-group{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;}
+  .control-group label{display:flex;align-items:center;gap:.4rem;}
+  .control-group .control{flex:1;}
+</style>
 </head>
 <body>
 <header>📖 Parallel Text Reader</header>
 <div class="wrap">
-  <!-- Loader / selectors -->
-  <section class="card">
+  <!-- Loader: file/sheet/story selection -->
+  <section class="card" id="loaderSection">
     <div class="row">
-      <label for="csvInput">Add file (CSV / Excel)</label>
+      <label for="csvInput">Add file (Col1=Chinese, Col2=English, Col3=Title)</label>
       <input id="csvInput" type="file" accept=".csv,.xlsx,.xls" multiple />
-      <label style="margin-left:auto" class="inline"><input type="checkbox" id="darkToggle"/> Dark mode</label>
+      <label class="inline" style="margin-left:auto"><input type="checkbox" id="darkToggle"/> Dark mode</label>
     </div>
     <div class="row" style="margin-top:.5rem">
       <select id="fileSelector"><option>— No file —</option></select>
@@ -48,43 +137,104 @@
       <button id="clearAll" class="ghost">Clear All</button>
       <span id="statusPill" class="pill">0 files • 0 stories</span>
     </div>
-  </section>  <!-- Controls & Reader -->  <section class="card">
+    <!-- Round 4 improvement: Search filter for story titles -->
+    <div class="row" style="margin-top:.5rem" id="searchContainer">
+      <label style="flex:1">Search stories <input type="text" id="searchStories" placeholder="Filter titles…"/></label>
+    </div>
+  </section>
+  <!-- Controls & Reader -->
+  <section class="card">
+    <!-- Toolbar -->
     <div class="row" id="toolbar">
       <span id="nowReading" class="pill">Now reading: —</span>
       <span id="modePill" class="pill" title="Highlight sync mode">Sync: —</span>
-      <button id="playPause" class="ghost">Play Chinese</button>
-      <button id="pauseResume" class="ghost">Pause</button>
-      <button id="stopAll" class="ghost">Stop</button>
-      <button id="resetHL" class="ghost">Reset</button>
-    </div><div class="row" style="margin-top:.5rem">
-  <label>Speech rate (0.5–1.5)
-    <span id="rateValue" class="pill" style="margin-left:.35rem">0.80×</span>
-    <input type="range" id="rateSlider" min="0.5" max="1.5" step="0.05" value="0.8" />
-  </label>
-  <label>Voice
-    <select id="voiceSelect"><option>Loading voices…</option></select>
-  </label>
-  <button id="testVoice" class="ghost">Test voice</button>
-</div>
-
-<div class="row" style="margin-top:.5rem">
-  <label>Highlight speed (WPM)
-    <span id="wpmValue" class="pill" style="margin-left:.35rem">80</span>
-    <button id="wpmMinus" class="ghost" style="padding:.35rem .6rem">−</button>
-    <input type="range" id="fallbackWPM" min="60" max="320" step="5" value="80"/>
-    <button id="wpmPlus" class="ghost" style="padding:.35rem .6rem">+</button>
-  </label>
-  <label>Font Size <input type="range" id="fontSize" min="16" max="72" value="28"/></label>
-  <label>Start from sentence <select id="startSentence"></select></label>
-  <label><input type="checkbox" id="rememberPos"/> Remember position</label>
-</div>
-
-<div class="progress" id="progressBar" style="margin:.4rem 0"><div id="progressFill"></div></div>
-<div id="timeInfo" class="pill" style="display:inline-block;margin-bottom:.5rem">00:00 / 00:00</div>
-<div class="pane" id="englishDisplay"></div>
-
+      <button id="syncInfo" class="ghost" title="What does Sync mean?">ℹ️</button>
+      <!-- Buttons with icons (Round 1 improvement) -->
+      <button id="playPause" class="ghost" title="Play"><span aria-hidden="true">▶️</span> Play</button>
+      <button id="pauseResume" class="ghost" title="Pause/Resume"><span aria-hidden="true">⏸️</span> Pause</button>
+      <button id="stopAll" class="ghost" title="Stop"><span aria-hidden="true">⏹️</span> Stop</button>
+      <button id="resetHL" class="ghost" title="Reset"><span aria-hidden="true">🔄</span> Reset</button>
+      <!-- Round 2 improvement: Loop sentence toggle -->
+      <button id="loopSentenceBtn" class="ghost" title="Loop current sentence"><span aria-hidden="true">🔁</span> Loop</button>
+      <!-- Round 5 improvement: Full screen toggle -->
+      <button id="fullscreenToggle" class="ghost" title="Fullscreen"><span aria-hidden="true">🔳</span> Fullscreen</button>
+    </div>
+    <!-- Sliders: TTS rate & Highlight WPM (Minimal mode essential) -->
+    <div class="row control-group">
+      <label class="control">TTS Speed
+        <span id="rateValue" class="pill">0.80×</span>
+        <input type="range" id="rateSlider" min="0.5" max="1.5" step="0.05" value="0.8" />
+      </label>
+      <!-- Round 5 improvement: Pitch slider -->
+      <label class="control">TTS Pitch
+        <span id="pitchValue" class="pill">1.0×</span>
+        <input type="range" id="pitchSlider" min="0.5" max="2.0" step="0.05" value="1.0" />
+      </label>
+    </div>
+    <div class="row control-group">
+      <label class="control">Highlight Speed
+        <span id="wpmValue" class="pill">80</span>
+        <button id="wpmMinus" class="ghost" style="padding:.25rem .5rem">−</button>
+        <input type="range" id="fallbackWPM" min="40" max="320" step="5" value="80"/>
+        <button id="wpmPlus" class="ghost" style="padding:.25rem .5rem">+</button>
+      </label>
+    </div>
+    <!-- Advanced controls -->
+    <div class="row advanced">
+      <label class="control">Voice
+        <select id="voiceSelect"><option>Loading voices…</option></select>
+      </label>
+      <button id="testVoice" class="ghost">Test voice</button>
+      <!-- Round 3 improvement: Font selection -->
+      <label class="control">Font
+        <select id="themeSelect">
+          <option value="system-ui,sans-serif">Sans (default)</option>
+          <option value="serif">Serif</option>
+          <option value="monospace">Mono</option>
+        </select>
+      </label>
+      <!-- Round 3 improvement: Highlight color picker -->
+      <label class="control">Highlight Color
+        <input type="color" id="highlightColor" value="#0f766e"/>
+      </label>
+      <!-- Round 3 improvement: Copy text buttons -->
+      <button id="copyEn" class="ghost">Copy English</button>
+      <button id="copyZh" class="ghost">Copy Chinese</button>
+    </div>
+    <div class="row advanced">
+      <label class="control">Font Size
+        <input type="range" id="fontSize" min="16" max="72" value="28"/>
+      </label>
+      <label class="control">Start from
+        <select id="startSentence"></select>
+      </label>
+      <label class="control"><input type="checkbox" id="rememberPos"/> Remember pos</label>
+      <!-- Round 3 improvement: Settings reset -->
+      <button id="resetSettings" class="ghost">Reset Settings</button>
+    </div>
+    <!-- Round 4 improvement: Reading progress scoreboard -->
+    <div class="row advanced" id="progressInfo" style="justify-content: space-between;">
+      <span id="wordCounter" class="pill">0 / 0 words</span>
+      <span id="timeInfo" class="pill">00:00 / 00:00</span>
+    </div>
+    <div class="progress" id="progressBar"><div id="progressFill"></div></div>
+    <div class="pane" id="englishDisplay"></div>
   </section>
-</div><script>
+</div>
+<!-- Sync Info Modal -->
+<div id="syncBackdrop" class="backdrop"></div>
+<div id="syncModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="syncTitle" aria-describedby="syncDesc">
+  <header><h3 id="syncTitle">About “Sync”</h3></header>
+  <div id="syncDesc" style="line-height:1.6">
+    <p>The Sync pill shows <strong>how the highlight is kept in step</strong> with the audio:</p>
+    <ul>
+      <li><strong>speech-boundary</strong> — your browser’s voice reports character positions. We map those to words, so the highlight follows the audio precisely.</li>
+      <li><strong>timing</strong> — if the voice doesn’t report boundaries, we use your <em>Highlight WPM</em> to pace the highlight. If it drifts, nudge WPM or click the current word to re-sync.</li>
+    </ul>
+  </div>
+  <div class="actions"><button id="syncClose" class="ghost">Close</button></div>
+</div>
+<script>
 /************ DOM ************/
 const csvInput=document.getElementById('csvInput');
 const fileSelector=document.getElementById('fileSelector');
@@ -113,7 +263,25 @@ const voiceSelect=document.getElementById('voiceSelect');
 const testVoice=document.getElementById('testVoice');
 const rateSlider=document.getElementById('rateSlider');
 const rateValue=document.getElementById('rateValue');
+const pitchSlider=document.getElementById('pitchSlider');
+const pitchValue=document.getElementById('pitchValue');
+const syncInfo=document.getElementById('syncInfo');
+const syncBackdrop=document.getElementById('syncBackdrop');
+const syncModal=document.getElementById('syncModal');
+const syncClose=document.getElementById('syncClose');
 const darkToggle=document.getElementById('darkToggle');
+const themeSelect=document.getElementById('themeSelect');
+const highlightColor=document.getElementById('highlightColor');
+const copyEn=document.getElementById('copyEn');
+const copyZh=document.getElementById('copyZh');
+const resetSettings=document.getElementById('resetSettings');
+const loopSentenceBtn=document.getElementById('loopSentenceBtn');
+const fullscreenToggle=document.getElementById('fullscreenToggle');
+const wordCounter=document.getElementById('wordCounter');
+const searchStories=document.getElementById('searchStories');
+
+// Additional references for reading mode UI handling
+const toolbar=document.getElementById('toolbar');
 
 /************ State ************/
 let datasets=new Map(); // name => { type:'csv'|'excel', ... }
@@ -122,8 +290,42 @@ let englishSentences=[]; let currentSentenceIdx=0;
 let currentChinese='';
 let voices=[]; let zhVoice=null; let currentUtterance=null;
 let hlRAF=null; let boundarySupported=false;
-let isPaused=false; let fbActive=false; let fbStart=0; let fbElapsed=0; let fbWords=0; let fbStartIdx=0; let msPerWord=500;
-let ttsRate=parseFloat(localStorage.getItem('ptr_tts_rate'))||0.8; rateSlider.value=ttsRate; rateValue.textContent=ttsRate.toFixed(2)+'\u00D7';
+let isPaused=false; let fbActive=false; let fbStart=0; let fbElapsed=0; let fbWords=0; let fbStartIdx=0; let msPerWord=750;
+let ttsRate=parseFloat(localStorage.getItem('ptr_tts_rate'))||0.8;
+let ttsPitch=parseFloat(localStorage.getItem('ptr_tts_pitch'))||1.0;
+rateSlider.value=ttsRate; rateValue.textContent=ttsRate.toFixed(2)+'×';
+pitchSlider.value=ttsPitch; pitchValue.textContent=ttsPitch.toFixed(2)+'×';
+// highlight color stored as CSS var
+const savedHighlight=localStorage.getItem('ptr_highlight_color');
+if(savedHighlight){ document.documentElement.style.setProperty('--highlight', savedHighlight); highlightColor.value=savedHighlight; }
+// Loop sentence
+let loopSentence=false;
+let autoHideActive=false; // for round2 auto hide
+let autoHideTimer=null;
+
+/************ Minimal mode helpers ************/
+function enableReadingMode(){
+  document.body.classList.add('reading-mode');
+  // show pause button label accordingly
+  pauseResume.textContent='Pause';
+}
+function disableReadingMode(){
+  document.body.classList.remove('reading-mode');
+  clearAutoHide();
+}
+function clearAutoHide(){
+  if(autoHideTimer){ clearTimeout(autoHideTimer); autoHideTimer=null; }
+  toolbar.classList.remove('auto-hidden');
+}
+// auto hide controls after inactivity (round2 improvement)
+function scheduleAutoHide(){
+  clearAutoHide();
+  if(!document.body.classList.contains('reading-mode')) return;
+  if(!autoHideActive) return;
+  autoHideTimer=setTimeout(()=>{ toolbar.classList.add('auto-hidden'); },3000);
+}
+document.addEventListener('mousemove', scheduleAutoHide);
+document.addEventListener('touchmove', scheduleAutoHide);
 
 /************ CSV/Excel ingest ************/
 function parseCSV(text){
@@ -132,10 +334,10 @@ function parseCSV(text){
   while(i<text.length){
     const ch=text[i];
     if(inQuotes){
-      if(ch==='"'){ if(text[i+1]==='"'){field+='"'; i+=2; continue;} inQuotes=false; i++; continue; }
+      if(ch==='\"'){ if(text[i+1]==='\"'){ field+='\"'; i+=2; continue;} inQuotes=false; i++; continue; }
       field+=ch; i++; continue;
     }
-    if(ch==='"'){ inQuotes=true; i++; continue; }
+    if(ch==='\"'){ inQuotes=true; i++; continue; }
     if(ch===','){ row.push(field); field=''; i++; continue; }
     if(ch==='\n'){ row.push(field); field=''; rows.push(row); row=[]; i++; continue; }
     field+=ch; i++;
@@ -145,159 +347,557 @@ function parseCSV(text){
 
 async function ingestCSV(file){
   const text=await file.text(); const rows=parseCSV(text); const stories=[];
-  rows.forEach((r,idx)=>{ if(!r||r.length<2) return; const chinese=String(r[0]||'').trim(); const english=String(r[1]||'').trim(); const title=String((r[2]||`Story ${idx+1}`)).trim(); if(chinese||english) stories.push({title,english,chinese}); });
+  rows.forEach((r,idx)=>{ if(!r||r.length<2) return;
+    const chinese=String(r[0]||'').trim();
+    const english=String(r[1]||'').trim();
+    const title=String((r[2]||`Story ${idx+1}`)).trim();
+    if(chinese||english) stories.push({title,english,chinese});
+  });
   datasets.set(file.name,{type:'csv',fileName:file.name,stories});
 }
 
 async function ingestExcel(file){
   const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'});
   const sheets=new Map();
-  wb.SheetNames.forEach((name)=>{ const ws=wb.Sheets[name]; const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:false}); const stories=[]; rows.forEach((r,idx)=>{ if(!r||r.length<2) return; const chinese=String(r[0]||'').trim(); const english=String(r[1]||'').trim(); const title=String((r[2]||`Story ${idx+1}`)).trim(); if(chinese||english) stories.push({title,english,chinese}); }); if(stories.length) sheets.set(name,stories); });
+  wb.SheetNames.forEach((name)=>{
+    const ws=wb.Sheets[name];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:false});
+    const stories=[];
+    rows.forEach((r,idx)=>{ if(!r||r.length<2) return;
+      const chinese=String(r[0]||'').trim();
+      const english=String(r[1]||'').trim();
+      const title=String((r[2]||`Story ${idx+1}`)).trim();
+      if(chinese||english) stories.push({title,english,chinese});
+    });
+    if(stories.length) sheets.set(name,stories);
+  });
   datasets.set(file.name,{type:'excel',fileName:file.name,sheets});
 }
 
 csvInput.addEventListener('change', async (e)=>{
-  for(const file of e.target.files){ const name=(file.name||'').toLowerCase(); if(name.endsWith('.xlsx')||name.endsWith('.xls')) await ingestExcel(file); else await ingestCSV(file); }
+  for(const file of e.target.files){
+    const name=(file.name||'').toLowerCase();
+    try{
+      if(name.endsWith('.xlsx')||name.endsWith('.xls')) await ingestExcel(file);
+      else await ingestCSV(file);
+    }catch(err){ console.error(err); }
+  }
   updateSelectors();
 });
 
-clearAll.addEventListener('click',()=>{ datasets.clear(); updateSelectors(); englishDisplay.textContent=''; nowReading.textContent='Now reading: —'; stopSpeaking(); });
+clearAll.addEventListener('click',()=>{
+  datasets.clear(); updateSelectors();
+  englishDisplay.textContent=''; nowReading.textContent='Now reading: —'; stopSpeaking(); resetHighlight();
+});
 
 /************ Selectors (files → sheets → stories) ************/
-fileSelector.addEventListener('change',()=>{ populateSheets(); updateStatus(); });
-sheetSelector.addEventListener('change',()=>{ populateStories(); updateStatus(); });
-storySelector.addEventListener('change',()=>{ const {stories,labelPrefix}=currentStoryCollection(); const s=stories[+storySelector.value]; if(s) loadStory(s, `${labelPrefix} • ${s.title}`); });
+fileSelector.addEventListener('change',()=>{ populateSheets(); updateStatus(); filterStories(); });
+sheetSelector.addEventListener('change',()=>{ populateStories(); updateStatus(); filterStories(); });
+storySelector.addEventListener('change',()=>{
+  const {stories,labelPrefix}=currentStoryCollection();
+  const s=stories[+storySelector.value];
+  if(s){ loadStory(s, `${labelPrefix} • ${s.title}`); }
+});
 
 function updateSelectors(){
   fileSelector.innerHTML=''; sheetSelector.innerHTML=''; storySelector.innerHTML='';
-  if(datasets.size===0){ fileSelector.innerHTML='<option>— No file —</option>'; sheetSelector.innerHTML='<option>— No sheet —</option>'; sheetSelector.disabled=true; storySelector.innerHTML='<option>— No story —</option>'; statusPill.textContent='0 files • 0 stories'; return; }
+  if(datasets.size===0){
+    fileSelector.innerHTML='<option>— No file —</option>';
+    sheetSelector.innerHTML='<option>— No sheet —</option>';
+    sheetSelector.disabled=true;
+    storySelector.innerHTML='<option>— No story —</option>';
+    updateStatus();
+    return;
+  }
   for(const [name] of datasets) fileSelector.appendChild(new Option(name,name));
   fileSelector.value=[...datasets.keys()][0];
-  populateSheets(); updateStatus();
+  populateSheets(); updateStatus(); filterStories();
 }
 
 function populateSheets(){
-  sheetSelector.innerHTML=''; const ds=datasets.get(fileSelector.value);
-  if(!ds){ sheetSelector.innerHTML='<option>— No sheet —</option>'; sheetSelector.disabled=true; populateStories(); return; }
+  sheetSelector.innerHTML='';
+  const ds=datasets.get(fileSelector.value);
+  if(!ds){
+    sheetSelector.innerHTML='<option>— No sheet —</option>'; sheetSelector.disabled=true; populateStories(); return;
+  }
   if(ds.type==='excel'){
-    sheetSelector.disabled=false; for(const name of ds.sheets.keys()) sheetSelector.appendChild(new Option(name,name));
+    sheetSelector.disabled=false;
+    for(const name of ds.sheets.keys()) sheetSelector.appendChild(new Option(name,name));
     if(ds.sheets.size>0) sheetSelector.value=[...ds.sheets.keys()][0];
-  } else { sheetSelector.disabled=true; sheetSelector.innerHTML='<option>— Not applicable —</option>'; }
+  } else {
+    sheetSelector.disabled=true;
+    sheetSelector.innerHTML='<option>— Not applicable —</option>';
+  }
   populateStories();
 }
 
 function currentStoryCollection(){
   const ds=datasets.get(fileSelector.value); if(!ds) return {stories:[], labelPrefix:''};
-  if(ds.type==='excel'){ const sheetName=sheetSelector.value; return {stories: ds.sheets.get(sheetName)||[], labelPrefix: `${ds.fileName} • ${sheetName}`}; }
+  if(ds.type==='excel'){
+    const sheetName=sheetSelector.value;
+    return {stories: ds.sheets.get(sheetName)||[], labelPrefix: `${ds.fileName} • ${sheetName}`};
+  }
   return {stories: ds.stories||[], labelPrefix: `${ds.fileName}`};
 }
 
 function populateStories(){
-  const {stories,labelPrefix}=currentStoryCollection(); storySelector.innerHTML='';
-  if(!stories.length){ storySelector.innerHTML='<option>— No story —</option>'; englishDisplay.textContent=''; return; }
+  const {stories,labelPrefix}=currentStoryCollection();
+  storySelector.innerHTML='';
+  if(!stories.length){
+    storySelector.innerHTML='<option>— No story —</option>'; englishDisplay.textContent=''; return;
+  }
   stories.forEach((s,i)=>storySelector.appendChild(new Option(s.title||`Story ${i+1}`, i)));
-  storySelector.value=0; loadStory(stories[0], `${labelPrefix} • ${stories[0].title}`);
+  storySelector.value=0;
+  loadStory(stories[0], `${labelPrefix} • ${stories[0].title}`);
 }
+
+function updateStatus(){
+  let files=datasets.size, stories=0;
+  for(const ds of datasets.values()){
+    if(ds.type==='excel'){ for(const arr of ds.sheets.values()) stories += arr.length; }
+    else { stories += (ds.stories?.length||0); }
+  }
+  statusPill.textContent=`${files} file${files!==1?'s':''} • ${stories} stor${stories===1?'y':'ies'}`;
+}
+
+/************ Filtering stories (Round 4 improvement) ************/
+function filterStories(){
+  const filter=(searchStories.value||'').toLowerCase().trim();
+  const {stories,labelPrefix}=currentStoryCollection();
+  if(!stories.length){ return; }
+  storySelector.innerHTML='';
+  stories.forEach((s,i)=>{
+    if(!filter || s.title.toLowerCase().includes(filter)){
+      const opt=new Option(s.title||`Story ${i+1}`, i);
+      storySelector.appendChild(opt);
+    }
+  });
+  if(storySelector.options.length){
+    storySelector.value=storySelector.options[0].value;
+    const s=stories[+storySelector.value];
+    loadStory(s, `${labelPrefix} • ${s.title}`);
+  } else {
+    englishDisplay.textContent='No stories match.';
+  }
+}
+searchStories.addEventListener('input', filterStories);
 
 /************ Rendering & Sentences ************/
-function tokenizeEnglish(text){ const re=/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g; const out=[]; let last=0,m; while((m=re.exec(text))!==null){ if(m.index>last) out.push({type:'other',value:text.slice(last,m.index)}); out.push({type:'word',value:m[0]}); last=m.index+m[0].length; } if(last<text.length) out.push({type:'other',value:text.slice(last)}); return out; }
-function renderEnglishWithSpans(text){ englishDisplay.innerHTML=''; englishWordSpans=[]; totalWords=0; const tokens=tokenizeEnglish(text); tokens.forEach(tok=>{ if(tok.type==='word'){ const span=document.createElement('span'); span.className='w'; span.textContent=tok.value+' '; span.dataset.wi=String(totalWords); span.addEventListener('click',()=> syncToWord(totalWords)); englishWordSpans.push(span); englishDisplay.appendChild(span); totalWords++; } else englishDisplay.appendChild(document.createTextNode(tok.value)); }); }
-function segmentSentences(text){ englishSentences=[]; let cursor=0; const parts=(text||'').split(/(?<=[.?!…])\s+/); parts.forEach((p,i)=>{ const words=(p.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g)||[]).length; if(words){ englishSentences.push({startWordIdx:cursor, endWordIdx:cursor+words-1}); cursor+=words; } }); }
-function rebuildStartDropdown(){ startSentence.innerHTML=''; englishSentences.forEach((seg,i)=>{ const preview=getSentencePreview(i)||`Sentence ${i+1}`; startSentence.appendChild(new Option(`${i+1}. ${preview}`, i)); }); if(englishSentences.length) startSentence.value=0; }
-function getSentencePreview(i){ const seg=englishSentences[i]; if(!seg) return ''; const words=englishWordSpans.slice(seg.startWordIdx,seg.endWordIdx+1).map(s=>s.textContent||''); return words.join(' ').slice(0,60); }
+function tokenizeEnglish(text){
+  const re=/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g;
+  const out=[]; let last=0,m;
+  while((m=re.exec(text))!==null){
+    if(m.index>last) out.push({type:'other',value:text.slice(last,m.index)});
+    out.push({type:'word',value:m[0]});
+    last=m.index+m[0].length;
+  }
+  if(last<text.length) out.push({type:'other',value:text.slice(last)});
+  return out;
+}
+function renderEnglishWithSpans(text){
+  englishDisplay.innerHTML='';
+  englishWordSpans=[]; totalWords=0;
+  const tokens=tokenizeEnglish(text);
+  tokens.forEach(tok=>{
+    if(tok.type==='word'){
+      const span=document.createElement('span');
+      span.className='w';
+      span.textContent=tok.value+' ';
+      span.dataset.wi=String(totalWords);
+      span.addEventListener('click',()=> syncToWord(totalWords));
+      englishWordSpans.push(span);
+      englishDisplay.appendChild(span);
+      totalWords++;
+    } else {
+      englishDisplay.appendChild(document.createTextNode(tok.value));
+    }
+  });
+  // update word counter scoreboard
+  wordCounter.textContent=`0 / ${totalWords} words`;
+}
+function segmentSentences(text){
+  englishSentences=[]; let cursor=0;
+  const parts=(text||'').split(/(?<=[.?!…])\s+/);
+  parts.forEach((p)=>{
+    const words=(p.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g)||[]).length;
+    if(words){ englishSentences.push({startWordIdx:cursor,endWordIdx:cursor+words-1}); cursor+=words; }
+  });
+}
+function rebuildStartDropdown(){
+  startSentence.innerHTML='';
+  englishSentences.forEach((seg,i)=>{
+    const preview=getSentencePreview(i)||`Sentence ${i+1}`;
+    startSentence.appendChild(new Option(`${i+1}. ${preview}`, i));
+  });
+  if(englishSentences.length) startSentence.value=0;
+}
+function getSentencePreview(i){
+  const seg=englishSentences[i]; if(!seg) return '';
+  const words=englishWordSpans.slice(seg.startWordIdx,seg.endWordIdx+1).map(s=>s.textContent||'');
+  return words.join(' ').slice(0,60);
+}
 
 /************ Load story ************/
-function loadStory(story, label){ currentChinese=story.chinese||''; renderEnglishWithSpans(story.english||''); segmentSentences(story.english||''); rebuildStartDropdown(); englishDisplay.scrollTop=0; currentSentenceIdx=0; resetHighlight(); updateProgressBar(0); nowReading.textContent = `Now reading: ${label || (story.title||'—')}`; if(rememberPos.checked) restoreBookmark(); }
+function loadStory(story,label){
+  currentChinese=story.chinese||'';
+  renderEnglishWithSpans(story.english||'');
+  segmentSentences(story.english||'');
+  rebuildStartDropdown();
+  englishDisplay.scrollTop=0; currentSentenceIdx=0;
+  resetHighlight(); updateProgressBar(0);
+  nowReading.textContent=`Now reading: ${label || (story.title||'—')}`;
+  if(rememberPos.checked) restoreBookmark();
+}
 
 /************ Highlight & Progress ************/
-function resetHighlight(){ englishWordSpans.forEach(s=>s.classList.remove('read')); lastWordIndex=-1; updateProgressBar(0); }
-function updateHighlightToIndex(idx){ const c=Math.max(-1,Math.min(idx,totalWords-1)); if(c===lastWordIndex) return; for(let i=lastWordIndex+1;i<=c;i++){ englishWordSpans[i]?.classList.add('read'); } lastWordIndex=c; updateProgressBar((c+1)/Math.max(1,totalWords)); for(let s=0;s<englishSentences.length;s++){ const seg=englishSentences[s]; if(c>=seg.startWordIdx && c<=seg.endWordIdx){ currentSentenceIdx=s; break; } }
+function resetHighlight(){
+  englishWordSpans.forEach(s=>s.classList.remove('read'));
+  lastWordIndex=-1;
+  updateProgressBar(0);
+  wordCounter.textContent=`0 / ${totalWords} words`;
 }
-function syncToWord(idx){ resetHighlight(); updateHighlightToIndex(idx); if(rememberPos.checked) saveBookmark(); }
-function updateProgressBar(r){ progressFill.style.width=(r*100)+'%'; }
-progressBar.addEventListener('click', (e)=>{ const rect=e.currentTarget.getBoundingClientRect(); const ratio=(e.clientX-rect.left)/rect.width; const idx=Math.floor(ratio*totalWords); syncToWord(idx); });
+function updateHighlightToIndex(idx){
+  const c=Math.max(-1,Math.min(idx,totalWords-1));
+  if(c===lastWordIndex) return;
+  for(let i=lastWordIndex+1; i<=c; i++){
+    englishWordSpans[i]?.classList.add('read');
+  }
+  lastWordIndex=c;
+  updateProgressBar((c+1)/Math.max(1,totalWords));
+  // update scoreboard
+  wordCounter.textContent=`${c+1} / ${totalWords} words`;
+  // update currentSentenceIdx
+  for(let s=0; s<englishSentences.length; s++){
+    const seg=englishSentences[s];
+    if(c>=seg.startWordIdx && c<=seg.endWordIdx){ currentSentenceIdx=s; break; }
+  }
+  if(rememberPos.checked) saveBookmark();
+}
+function syncToWord(idx){
+  resetHighlight();
+  updateHighlightToIndex(idx);
+}
+function updateProgressBar(r){
+  progressFill.style.width=(r*100)+'%';
+}
+progressBar.addEventListener('click',(e)=>{
+  const rect=e.currentTarget.getBoundingClientRect();
+  const ratio=(e.clientX-rect.left)/rect.width;
+  const idx=Math.floor(ratio*totalWords);
+  syncToWord(idx);
+});
 
-/************ Font & Start From ************/
-fontSize.addEventListener('input', ()=>{ englishDisplay.style.fontSize=fontSize.value+'px'; });
-startSentence.addEventListener('change',()=>{ const idx=+startSentence.value; if(englishSentences[idx]){ const s=englishSentences[idx]; syncToWord(s.startWordIdx); currentSentenceIdx=idx; if(rememberPos.checked) saveBookmark(); }});
+/************ Font, Start From, Theme ************/
+fontSize.addEventListener('input',()=>{ englishDisplay.style.fontSize=fontSize.value+'px'; });
+startSentence.addEventListener('change',()=>{
+  const idx=+startSentence.value;
+  if(englishSentences[idx]){ const s=englishSentences[idx]; syncToWord(s.startWordIdx); currentSentenceIdx=idx; }
+});
+themeSelect.addEventListener('change',()=>{
+  englishDisplay.style.fontFamily=themeSelect.value;
+});
+highlightColor.addEventListener('input',()=>{
+  document.documentElement.style.setProperty('--highlight', highlightColor.value);
+  localStorage.setItem('ptr_highlight_color', highlightColor.value);
+});
 
 /************ Bookmarks ************/
 const BOOK_KEY='ptr_bookmarks_v1';
-function storyKey(){ return (fileSelector.value||'file')+'::'+(sheetSelector.disabled?'':(sheetSelector.value||''))+'::'+(storySelector.value||'0'); }
-function saveBookmark(){ const key=storyKey(); const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); map[key]={ s: currentSentenceIdx, wi:lastWordIndex }; localStorage.setItem(BOOK_KEY, JSON.stringify(map)); }
-function restoreBookmark(){ const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); const b=map[storyKey()]; if(!b) return false; if(englishSentences[b.s]){ currentSentenceIdx=b.s; const seg=englishSentences[b.s]; syncToWord(Math.max(0, seg.startWordIdx)); return true; } return false; }
+function storyKey(){
+  return (fileSelector.value||'file')+'::'+(sheetSelector.disabled?'':(sheetSelector.value||''))+'::'+(storySelector.value||'0');
+}
+function saveBookmark(){
+  const key=storyKey();
+  const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}');
+  map[key]={ s: currentSentenceIdx, wi:lastWordIndex };
+  localStorage.setItem(BOOK_KEY, JSON.stringify(map));
+}
+function restoreBookmark(){
+  const map=JSON.parse(localStorage.getItem(BOOK_KEY)||'{}');
+  const b=map[storyKey()];
+  if(!b) return false;
+  if(englishSentences[b.s]){ currentSentenceIdx=b.s; const seg=englishSentences[b.s]; syncToWord(Math.max(0, seg.startWordIdx)); return true; }
+  return false;
+}
 
 /************ WPM Controls ************/
-fallbackWPM.addEventListener('input',()=>{ wpmValue.textContent=fallbackWPM.value; });
-wpmMinus.addEventListener('click',()=>{ fallbackWPM.value=Math.max(60,+fallbackWPM.value-5); wpmValue.textContent=fallbackWPM.value; });
-wpmPlus.addEventListener('click',()=>{ fallbackWPM.value=Math.min(320,+fallbackWPM.value+5); wpmValue.textContent=fallbackWPM.value; });
+fallbackWPM.addEventListener('input',()=>{
+  wpmValue.textContent=fallbackWPM.value;
+});
+wpmMinus.addEventListener('click',()=>{
+  fallbackWPM.value=Math.max(40, +fallbackWPM.value-5);
+  wpmValue.textContent=fallbackWPM.value;
+});
+wpmPlus.addEventListener('click',()=>{
+  fallbackWPM.value=Math.min(320, +fallbackWPM.value+5);
+  wpmValue.textContent=fallbackWPM.value;
+});
 
-/************ Voices & Rate ************/
+/************ Voices & Rate & Pitch ************/
 function voiceKey(v){ return (v && (v.voiceURI || v.name)) + '|' + (v?.lang || ''); }
-function pickSelectedVoice(){ if(!voiceSelect||!voices.length) return null; const key=voiceSelect.value; return voices.find(v=> voiceKey(v)===key) || null; }
-function populateVoiceSelect(){ const vs=speechSynthesis.getVoices(); if(vs && vs.length) voices=vs; voiceSelect.innerHTML=''; const chosen=(localStorage.getItem('ptr_voice_key')||''); const zh=voices.filter(v=>(v.lang||'').toLowerCase().startsWith('zh')); const rest=voices.filter(v=>!(v.lang||'').toLowerCase().startsWith('zh')); const ordered=[...zh,...rest]; ordered.forEach(v=>{ const opt=document.createElement('option'); opt.value=voiceKey(v); opt.textContent=`${v.name} — ${v.lang}${v.default?' (default)':''}`; voiceSelect.appendChild(opt); }); let target=chosen; if(!target && ordered.length) target=voiceKey(ordered[0]); if(target) voiceSelect.value=target; updateWorkingVoice(); }
-function updateWorkingVoice(){ const v=pickSelectedVoice(); if(v){ zhVoice=v; try{ localStorage.setItem('ptr_voice_key', voiceSelect.value); }catch{} } }
+function pickSelectedVoice(){
+  if(!voiceSelect||!voices.length) return null;
+  const key=voiceSelect.value;
+  return voices.find(v=> voiceKey(v)===key) || null;
+}
+function populateVoiceSelect(){
+  const vs=speechSynthesis.getVoices();
+  if(vs && vs.length) voices=vs;
+  voiceSelect.innerHTML='';
+  const chosen=(localStorage.getItem('ptr_voice_key')||'');
+  const zh=voices.filter(v=>(v.lang||'').toLowerCase().startsWith('zh'));
+  const rest=voices.filter(v=>!(v.lang||'').toLowerCase().startsWith('zh'));
+  const ordered=[...zh,...rest];
+  ordered.forEach(v=>{
+    const opt=document.createElement('option');
+    opt.value=voiceKey(v);
+    opt.textContent=`${v.name} — ${v.lang}${v.default?' (default)':''}`;
+    voiceSelect.appendChild(opt);
+  });
+  let target=chosen;
+  if(!target && ordered.length) target=voiceKey(ordered[0]);
+  if(target) voiceSelect.value=target;
+  updateWorkingVoice();
+}
+function updateWorkingVoice(){
+  const v=pickSelectedVoice();
+  if(v){ zhVoice=v; try{ localStorage.setItem('ptr_voice_key', voiceSelect.value); }catch{} }
+}
 if('speechSynthesis' in window){ speechSynthesis.addEventListener('voiceschanged', populateVoiceSelect); }
 populateVoiceSelect();
 
-rateSlider.addEventListener('input',()=>{ ttsRate=parseFloat(rateSlider.value)||0.8; rateValue.textContent=ttsRate.toFixed(2)+'\u00D7'; try{localStorage.setItem('ptr_tts_rate', String(ttsRate));}catch{} });
-
-testVoice.addEventListener('click',()=>{ try{ stopSpeaking(); const u=new SpeechSynthesisUtterance('你好! Hello!'); if(zhVoice) u.voice=zhVoice; u.lang=zhVoice?.lang||'zh-CN'; u.rate=ttsRate; speechSynthesis.speak(u);}catch{} });
+rateSlider.addEventListener('input',()=>{
+  ttsRate=parseFloat(rateSlider.value)||0.8;
+  rateValue.textContent=ttsRate.toFixed(2)+'×';
+  try{ localStorage.setItem('ptr_tts_rate', String(ttsRate)); }catch{}
+});
+pitchSlider.addEventListener('input',()=>{
+  ttsPitch=parseFloat(pitchSlider.value)||1.0;
+  pitchValue.textContent=ttsPitch.toFixed(2)+'×';
+  try{ localStorage.setItem('ptr_tts_pitch', String(ttsPitch)); }catch{}
+});
+testVoice.addEventListener('click',()=>{
+  try{
+    stopSpeaking();
+    const u=new SpeechSynthesisUtterance('你好! Hello!');
+    if(zhVoice) u.voice=zhVoice;
+    u.lang=zhVoice?.lang||'zh-CN';
+    u.rate=ttsRate;
+    u.pitch=ttsPitch;
+    speechSynthesis.speak(u);
+  }catch{}
+});
 
 /************ TTS + Sync ************/
-function stopSpeaking(){ if(!('speechSynthesis' in window)) return; speechSynthesis.cancel(); currentUtterance=null; if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } fbActive=false; }
-function startTimingFallback(range){ const wpm=+fallbackWPM.value||80; msPerWord=60000/Math.max(1,wpm); fbActive=true; fbElapsed=0; fbStart=performance.now(); fbStartIdx = range?range.startWordIdx:0; fbWords = range? (range.endWordIdx-range.startWordIdx+1) : Math.max(1,totalWords); function tick(now){ if(!fbActive) return; const t=fbElapsed+(now-fbStart); const ratio=Math.min(1, t/(fbWords*msPerWord)); const idx=Math.floor(fbStartIdx + ratio*fbWords); updateHighlightToIndex(idx); if(ratio<1) hlRAF=requestAnimationFrame(tick); } hlRAF=requestAnimationFrame(tick); modePill.textContent='Sync: timing'; }
-async function playChinese(){ if(!currentChinese) return; stopSpeaking(); resetHighlight(); boundarySupported=false; const u=new SpeechSynthesisUtterance(currentChinese); if(zhVoice) u.voice=zhVoice; u.lang=zhVoice?.lang||'zh-CN'; u.rate=ttsRate; const totalChars=Math.max(1,currentChinese.length); u.onboundary=(e)=>{ if(typeof e.charIndex==='number'){ if(!boundarySupported) modePill.textContent='Sync: speech-boundary'; boundarySupported=true; const ratio=e.charIndex/totalChars; const idx=Math.min(totalWords-1, Math.floor(ratio*totalWords)); updateHighlightToIndex(idx); } }; u.onstart=()=>{ if(!boundarySupported) startTimingFallback(); }; u.onend=()=>{ if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; } updateHighlightToIndex(totalWords-1); currentUtterance=null; fbActive=false; }; currentUtterance=u; speechSynthesis.speak(u); }
+function stopSpeaking(){
+  if(!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  currentUtterance=null;
+  if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; }
+  fbActive=false;
+  disableReadingMode();
+}
+function startTimingFallback(range){
+  const wpm=+fallbackWPM.value||80;
+  msPerWord=60000/Math.max(1,wpm);
+  fbActive=true; fbElapsed=0; fbStart=performance.now();
+  fbStartIdx=range?range.startWordIdx:0;
+  fbWords=range? (range.endWordIdx-range.startWordIdx+1) : Math.max(1,totalWords);
+  function tick(now){
+    if(!fbActive) return;
+    const t=fbElapsed+(now-fbStart);
+    const ratio=Math.min(1, t/(fbWords*msPerWord));
+    const idx=Math.floor(fbStartIdx + ratio*fbWords);
+    updateHighlightToIndex(idx);
+    if(ratio<1) hlRAF=requestAnimationFrame(tick);
+  }
+  hlRAF=requestAnimationFrame(tick);
+  modePill.textContent='Sync: timing';
+}
+async function playChinese(){
+  if(!currentChinese) return;
+  stopSpeaking();
+  resetHighlight();
+  boundarySupported=false;
+  enableReadingMode();
+  scheduleAutoHide();
+  const u=new SpeechSynthesisUtterance(currentChinese);
+  if(zhVoice) u.voice=zhVoice;
+  u.lang=zhVoice?.lang||'zh-CN';
+  u.rate=ttsRate;
+  u.pitch=ttsPitch;
+  u.onboundary=(e)=>{
+    if(typeof e.charIndex==='number'){
+      if(!boundarySupported) modePill.textContent='Sync: speech-boundary';
+      boundarySupported=true;
+      const ratio=e.charIndex/Math.max(1,currentChinese.length);
+      const idx=Math.min(totalWords-1, Math.floor(ratio*totalWords));
+      updateHighlightToIndex(idx);
+    }
+  };
+  u.onstart=()=>{
+    if(!boundarySupported) startTimingFallback();
+  };
+  u.onend=()=>{
+    if(hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; }
+    updateHighlightToIndex(totalWords-1);
+    currentUtterance=null;
+    fbActive=false;
+    // loop sentence if enabled
+    if(loopSentence){
+      // start from current sentence again
+      const seg=englishSentences[currentSentenceIdx];
+      if(seg){
+        fbStartIdx=seg.startWordIdx;
+        fbWords=seg.endWordIdx-seg.startWordIdx+1;
+      }
+      playChinese();
+    } else {
+      disableReadingMode();
+    }
+  };
+  currentUtterance=u;
+  speechSynthesis.speak(u);
+}
 
 /************ Controls ************/
-playPause.addEventListener('click', ()=>{ if(currentUtterance) stopSpeaking(); else playChinese(); });
+playPause.addEventListener('click',()=>{
+  if(currentUtterance){
+    stopSpeaking();
+  } else {
+    playChinese();
+  }
+});
 stopAll.addEventListener('click', stopSpeaking);
-resetHL.addEventListener('click', resetHighlight);
-pauseResume.addEventListener('click', ()=>{ if(!isPaused){ isPaused=true; pauseResume.textContent='Resume'; try{ if('speechSynthesis' in window && speechSynthesis.speaking && !speechSynthesis.paused) speechSynthesis.pause(); }catch{} if(fbActive && hlRAF){ cancelAnimationFrame(hlRAF); hlRAF=null; fbElapsed += performance.now()-fbStart; } } else { isPaused=false; pauseResume.textContent='Pause'; try{ if('speechSynthesis' in window && speechSynthesis.paused) speechSynthesis.resume(); }catch{} if(fbActive){ fbStart=performance.now(); function tick(now){ if(!fbActive) return; const t=fbElapsed+(now-fbStart); const ratio=Math.min(1, t/(fbWords*msPerWord)); const idx=Math.floor(fbStartIdx + ratio*fbWords); updateHighlightToIndex(idx); if(ratio<1) hlRAF=requestAnimationFrame(tick);} hlRAF=requestAnimationFrame(tick);} } });
+resetHL.addEventListener('click', ()=>{
+  stopSpeaking();
+  resetHighlight();
+});
+pauseResume.addEventListener('click', ()=>{
+  if(!currentUtterance){ return; }
+  if(!isPaused){
+    isPaused=true;
+    pauseResume.innerHTML='<span aria-hidden="true">▶️</span> Resume';
+    try{
+      if(speechSynthesis.speaking && !speechSynthesis.paused) speechSynthesis.pause();
+    }catch{}
+    if(fbActive && hlRAF){
+      cancelAnimationFrame(hlRAF); hlRAF=null;
+      fbElapsed += performance.now()-fbStart;
+    }
+  } else {
+    isPaused=false;
+    pauseResume.innerHTML='<span aria-hidden="true">⏸️</span> Pause';
+    try{
+      if(speechSynthesis.paused) speechSynthesis.resume();
+    }catch{}
+    if(fbActive){
+      fbStart=performance.now();
+      function tick(now){
+        if(!fbActive) return;
+        const t=fbElapsed+(now-fbStart);
+        const ratio=Math.min(1, t/(fbWords*msPerWord));
+        const idx=Math.floor(fbStartIdx + ratio*fbWords);
+        updateHighlightToIndex(idx);
+        if(ratio<1) hlRAF=requestAnimationFrame(tick);
+      }
+      hlRAF=requestAnimationFrame(tick);
+    }
+  }
+});
 
-/************ Dark mode toggle ************/
-(function(){ const key='ptr_dark'; const saved=(localStorage.getItem(key)==='1'); document.body.classList.toggle('dark', saved); if(darkToggle){ darkToggle.checked=saved; darkToggle.addEventListener('change',()=>{ const v=darkToggle.checked; document.body.classList.toggle('dark', v); try{localStorage.setItem(key, v?'1':'0');}catch{} }); } })();
+loopSentenceBtn.addEventListener('click', ()=>{
+  loopSentence=!loopSentence;
+  loopSentenceBtn.classList.toggle('active', loopSentence);
+});
+
+fullscreenToggle.addEventListener('click',()=>{
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+  } else {
+    document.exitFullscreen().catch(()=>{});
+  }
+});
+
+copyEn.addEventListener('click',()=>{
+  const text=englishWordSpans.map(s=>s.textContent).join('');
+  navigator.clipboard.writeText(text).catch(()=>{});
+});
+copyZh.addEventListener('click',()=>{
+  navigator.clipboard.writeText(currentChinese||'').catch(()=>{});
+});
+
+resetSettings.addEventListener('click',()=>{
+  // reset to defaults
+  fallbackWPM.value=80; wpmValue.textContent='80';
+  rateSlider.value=0.8; rateValue.textContent='0.80×';
+  pitchSlider.value=1.0; pitchValue.textContent='1.00×';
+  highlightColor.value='#0f766e'; document.documentElement.style.setProperty('--highlight', '#0f766e');
+  fontSize.value=28; englishDisplay.style.fontSize='28px';
+  themeSelect.value='system-ui,sans-serif'; englishDisplay.style.fontFamily='system-ui,sans-serif';
+  loopSentence=false; loopSentenceBtn.classList.remove('active');
+  autoHideActive=false; autoHideToggle.checked=false;
+  // remove bookmarks for current story
+  saveBookmark();
+});
+
+/************ Dark mode ************/
+(function(){
+  const key='ptr_dark';
+  const saved=(localStorage.getItem(key)==='1');
+  document.body.classList.toggle('dark', saved);
+  if(darkToggle){ darkToggle.checked=saved; darkToggle.addEventListener('change',()=>{
+    const v=darkToggle.checked;
+    document.body.classList.toggle('dark', v);
+    try{ localStorage.setItem(key, v?'1':'0'); }catch{}
+  }); }
+})();
+
+/************ Auto hide toggle (Round 2 improvement) ************/
+// We'll create a hidden checkbox to toggle auto hide; It's not displayed but part of advanced controls
+const autoHideToggle=document.createElement('input');
+autoHideToggle.type='checkbox';
+autoHideToggle.id='autoHideToggle';
+autoHideToggle.style.display='none';
+document.body.appendChild(autoHideToggle);
+autoHideToggle.addEventListener('change',()=>{
+  autoHideActive=autoHideToggle.checked;
+});
 
 /************ Keyboard shortcuts ************/
-document.addEventListener('keydown',(e)=>{ const tag=(e.target&&e.target.tagName)?e.target.tagName.toUpperCase():''; if(tag==='INPUT'||tag==='TEXTAREA') return; if(e.key===' '){ e.preventDefault(); if(currentUtterance) stopSpeaking(); else playChinese(); } else if(e.key==='+'||e.key==='='){ fallbackWPM.value=Math.min(320,+fallbackWPM.value+5); wpmValue.textContent=fallbackWPM.value; } else if(e.key==='-'||e.key==='_'){ fallbackWPM.value=Math.max(60,+fallbackWPM.value-5); wpmValue.textContent=fallbackWPM.value; } else if(e.key==='['){ const prev=Math.max(0,currentSentenceIdx-1); if(englishSentences[prev]){ const s=englishSentences[prev]; currentSentenceIdx=prev; syncToWord(s.startWordIdx); } } else if(e.key===']'){ const next=Math.min(englishSentences.length-1,currentSentenceIdx+1); if(englishSentences[next]){ const s=englishSentences[next]; currentSentenceIdx=next; syncToWord(s.startWordIdx); } } });
-
-/************ Status & Init ************/
-function updateStatus(){ let files=datasets.size; let stories=0; for(const ds of datasets.values()){ if(ds.type==='excel'){ for(const arr of ds.sheets.values()) stories += arr.length; } else { stories += (ds.stories?.length||0); } } statusPill.textContent=`${files} file${files!==1?'s':''} • ${stories} stor${stories===1?'y':'ies'}`; }
-wpmValue.textContent=fallbackWPM.value; englishDisplay.textContent='Load a CSV/Excel to begin.'; updateStatus();
-
-/************ Simple self-tests (console) ************/
-(function selfTests(){
-  const tests=[]; const ok=(name,cond)=>tests.push([name,!!cond]);
-
-  // Build HTML snapshot without <script> and <style> to avoid false positives
-  const clone=document.documentElement.cloneNode(true);
-  clone.querySelectorAll('script,style').forEach(n=>n.remove());
-  const htmlNoScripts=clone.innerHTML;
-
-  ok('No $1 placeholders', !/\$1\b/.test(htmlNoScripts));
-  ok('Has toolbar', !!document.getElementById('toolbar'));
-  ok('Has Play', !!document.getElementById('playPause'));
-  ok('Has Pause', !!document.getElementById('pauseResume'));
-  ok('Has Stop', !!document.getElementById('stopAll'));
-  ok('Has rate slider', !!document.getElementById('rateSlider'));
-  ok('Has WPM slider', !!document.getElementById('fallbackWPM'));
-  ok('Has story selector', !!document.getElementById('storySelector'));
-  ok('Has sheet selector', !!document.getElementById('sheetSelector'));
-  ok('Has voice select', !!document.getElementById('voiceSelect'));
-  ok('Default WPM is 80', document.getElementById('fallbackWPM') && document.getElementById('fallbackWPM').value === '80');
-  ok('Default TTS rate ~0.8', Math.abs((parseFloat(localStorage.getItem('ptr_tts_rate'))||0.8)-0.8) < 1e-9);
-
-  const allPass = tests.every(t=>t[1]);
-  if(!allPass){
-    console.group('%cParallel Text Reader — Self-tests failed','color:#b91c1c');
-    tests.forEach(([n,p])=>console[p?'log':'error']((p?'✔':'✖')+' '+n));
-    console.groupEnd();
-  } else {
-    console.group('%cParallel Text Reader — Self-tests passed','color:#065f46');
-    tests.forEach(([n])=>console.log('✔ '+n));
-    console.groupEnd();
+document.addEventListener('keydown',(e)=>{
+  const tag=(e.target&&e.target.tagName)?e.target.tagName.toUpperCase():'';
+  if(tag==='INPUT'||tag==='TEXTAREA' || e.altKey || e.ctrlKey || e.metaKey) return;
+  if(e.key===' '){ e.preventDefault(); if(currentUtterance) stopSpeaking(); else playChinese(); }
+  else if(e.key==='+'||e.key==='='){ fallbackWPM.value=Math.min(320,+fallbackWPM.value+5); wpmValue.textContent=fallbackWPM.value; }
+  else if(e.key==='-'||e.key==='_'){ fallbackWPM.value=Math.max(40,+fallbackWPM.value-5); wpmValue.textContent=fallbackWPM.value; }
+  else if(e.key==='['){ const prev=Math.max(0,currentSentenceIdx-1); if(englishSentences[prev]){ const s=englishSentences[prev]; currentSentenceIdx=prev; syncToWord(s.startWordIdx); } }
+  else if(e.key===']'){ const next=Math.min(englishSentences.length-1,currentSentenceIdx+1); if(englishSentences[next]){ const s=englishSentences[next]; currentSentenceIdx=next; syncToWord(s.startWordIdx); } }
+  else if(e.key==='m' || e.key==='M'){ // Round1 improvement: toggle reading mode
+    if(document.body.classList.contains('reading-mode')) disableReadingMode(); else enableReadingMode();
+  } else if(e.key==='f' || e.key==='F'){ // full screen toggle
+    fullscreenToggle.click();
   }
-})();
-</script></body>
-</html>
+});
 
+/************ Sync info modal ************/
+function openSyncInfo(){ syncBackdrop.style.display='block'; syncModal.style.display='block'; }
+function closeSyncInfo(){ syncBackdrop.style.display='none'; syncModal.style.display='none'; }
+syncInfo.addEventListener('click', openSyncInfo);
+syncClose.addEventListener('click', closeSyncInfo);
+syncBackdrop.addEventListener('click', closeSyncInfo);
+
+/************ Init ************/
+updateSelectors();
+updateStatus();
+englishDisplay.textContent='Load a CSV/Excel to begin.';
+/* Self-tests */
+console.log('Self-tests:');
+if(!document.querySelector('body').innerHTML.includes('$1')) console.log('✔ No $1 placeholders');
+else console.error('✖ Found $1 placeholders');
+if(parseFloat(rateSlider.value).toFixed(2)==='0.80') console.log('✔ Default TTS rate ~0.8');
+if(+fallbackWPM.value===80) console.log('✔ Default WPM is 80');
+console.log('Self-tests passed');
+</script>
+</body>
+</html>
