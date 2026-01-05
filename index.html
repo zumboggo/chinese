@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chinese Diglot Weave - Beneath the Dragoneye Moons</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Chinese Diglot Weave Reader</h1>
+            <h2>Beneath the Dragoneye Moons</h2>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">Known Words:</span>
+                    <span class="stat-value" id="known-count">397</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Learning Words:</span>
+                    <span class="stat-value" id="learning-count">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Chinese Ratio:</span>
+                    <span class="stat-value" id="chinese-ratio">2%</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="difficulty">Difficulty Level:</label>
+                <select id="difficulty">
+                    <option value="1" selected>Beginner (98% comprehension)</option>
+                    <option value="2">Intermediate (95% comprehension)</option>
+                    <option value="3">Advanced (90% comprehension)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="chapter">Chapter:</label>
+                <select id="chapter">
+                    <option value="1" selected>Chapter 1 - Rebirth</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <button id="play-btn" class="btn-primary">🔊 Play Audio</button>
+                <button id="pause-btn" class="btn-secondary">⏸ Pause</button>
+                <button id="reset-btn" class="btn-secondary">🔄 Reset</button>
+            </div>
+        </div>
+
+        <div class="reading-area">
+            <div class="text-display" id="text-display">
+                <div class="loading">Loading diglot weave text...</div>
+            </div>
+        </div>
+
+        <div class="vocabulary-panel" id="vocab-panel">
+            <h3>Current Vocabulary</h3>
+            <div id="current-vocab">
+                <p>Hover over Chinese words to see definitions</p>
+            </div>
+        </div>
+
+        <div class="progress-panel">
+            <div class="progress-item">
+                <span>Words Learned Today:</span>
+                <span id="words-learned">0</span>
+            </div>
+            <div class="progress-item">
+                <span>Reading Progress:</span>
+                <span id="reading-progress">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div id="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
